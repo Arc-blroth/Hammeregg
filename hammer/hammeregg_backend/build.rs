@@ -16,7 +16,7 @@ fn main() {
             "build",
             "-buildmode=c-archive",
             "-o",
-            a_path.display().to_string().as_str()
+            a_path.display().to_string().as_str(),
         ])
         .spawn()
         .expect("Could not start go build!")

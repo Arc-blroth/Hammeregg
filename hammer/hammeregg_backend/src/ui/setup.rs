@@ -1,8 +1,10 @@
-use crate::ui::screen::Screen;
-use eframe::egui::{Ui, Label, Color32};
 use std::ffi::CString;
 use std::net::SocketAddr;
+
+use eframe::egui::{Color32, Label, Ui};
+
 use crate::ui::running::RunningScreen;
+use crate::ui::screen::Screen;
 
 pub struct SetupScreen {
     desktop_name: String,
@@ -78,7 +80,7 @@ impl Screen for SetupScreen {
         ui.add_space(4.0);
         ui.label(
             Label::new(self.error_msg.as_ref().unwrap_or(&String::default()))
-                .text_color(Color32::from_rgb(245, 66, 66))
+                .text_color(Color32::from_rgb(245, 66, 66)),
         );
         ui.add_space(16.0);
         if ui.button("Start!").clicked() && self.validate_input() {

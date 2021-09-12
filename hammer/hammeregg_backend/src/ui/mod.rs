@@ -1,12 +1,13 @@
+pub mod running;
 pub mod screen;
 pub mod setup;
-pub mod running;
 
+use eframe::egui::{Align2, CtxRef, FontDefinitions, Rgba, Vec2, Window};
 use eframe::epi::{App, Frame, Storage};
-use eframe::egui::{CtxRef, FontDefinitions, Vec2, Window, Align2, Rgba};
+use eframe::NativeOptions;
+
 use crate::ui::screen::Screen;
 use crate::ui::setup::SetupScreen;
-use eframe::NativeOptions;
 
 const APP_NAME: &str = "Hammeregg Desktop";
 const WINDOW_PADDING: Vec2 = Vec2::splat(16.0);

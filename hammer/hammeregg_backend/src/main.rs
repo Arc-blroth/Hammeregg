@@ -4,8 +4,8 @@
 
 #![windows_subsystem = "windows"]
 
-pub mod ui;
 pub mod pion;
+pub mod ui;
 
 fn main() {
     ui::show_ui();

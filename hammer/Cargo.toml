@@ -4,6 +4,5 @@ cargo-features = ["strip"]
 members = [ "hammeregg_backend" ]
 
 [profile.release]
-debug = true
 lto = true
 strip = true
