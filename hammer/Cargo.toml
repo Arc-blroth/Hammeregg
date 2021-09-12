@@ -1,0 +1,9 @@
+cargo-features = ["strip"]
+
+[workspace]
+members = [ "hammeregg_backend" ]
+
+[profile.release]
+debug = true
+lto = true
+strip = true
