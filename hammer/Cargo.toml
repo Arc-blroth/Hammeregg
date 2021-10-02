@@ -1,7 +1,11 @@
 cargo-features = ["strip"]
 
 [workspace]
-members = [ "hammeregg_backend" ]
+members = [
+    "hammeregg_core",
+    "hammeregg_backend",
+    "hammeregg_rooster"
+]
 
 [profile.release]
 lto = true

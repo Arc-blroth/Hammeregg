@@ -5,5 +5,14 @@ authors = ["Arc-blroth <45273859+Arc-blroth@users.noreply.github.com>"]
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.44"
+atomic_refcell = "0.1.8"
 eframe = "0.14.0"
+futures = "0.3.17"
+hammeregg_core = { path = "../hammeregg_core" }
 names = { git = "https://github.com/fnichol/names", rev = "630a946" }
+rand_chacha = "0.3.1"
+rsa = "0.5.0"
+tokio = { version = "1.11.0", default-features = false, features = ["rt"] }
+tokio-tungstenite = { version = "0.15.0", features = ["native-tls"] }
+url = "2.2.2"

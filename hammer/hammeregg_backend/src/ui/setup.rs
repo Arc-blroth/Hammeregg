@@ -1,8 +1,13 @@
 use std::ffi::CString;
 use std::net::SocketAddr;
 
-use eframe::egui::{Color32, Label, Ui};
+use anyhow::Result;
+use eframe::egui::{Button, Color32, Label, TextEdit, Ui};
+use futures::channel::oneshot;
+use futures::channel::oneshot::Receiver;
 
+use crate::net;
+use crate::net::WSS;
 use crate::ui::running::RunningScreen;
 use crate::ui::screen::Screen;
 
@@ -10,6 +15,7 @@ pub struct SetupScreen {
     desktop_name: String,
     signalling_server_addr: String,
     error_msg: Option<String>,
+    signalling_connection_init: Option<Receiver<Result<WSS>>>,
 }
 
 impl SetupScreen {
@@ -21,6 +27,7 @@ impl SetupScreen {
             desktop_name: names::Generator::default().next().unwrap(),
             signalling_server_addr: String::default(),
             error_msg: None,
+            signalling_connection_init: None,
         }
     }
 }
@@ -66,16 +73,18 @@ impl SetupScreen {
 
 impl Screen for SetupScreen {
     fn update(&mut self, ui: &mut Ui) -> Option<Box<dyn Screen>> {
+        let enabled = self.signalling_connection_init.is_none();
+
         ui.heading("Hammeregg Config");
         ui.add_space(32.0);
         ui.horizontal(|ui| {
             ui.label("Desktop Name: ");
-            ui.text_edit_singleline(&mut self.desktop_name);
+            ui.add(TextEdit::singleline(&mut self.desktop_name).enabled(enabled));
         });
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.label("Signalling Server: ");
-            ui.text_edit_singleline(&mut self.signalling_server_addr);
+            ui.add(TextEdit::singleline(&mut self.signalling_server_addr).enabled(enabled));
         });
         ui.add_space(4.0);
         ui.label(
@@ -83,11 +92,41 @@ impl Screen for SetupScreen {
                 .text_color(Color32::from_rgb(245, 66, 66)),
         );
         ui.add_space(16.0);
-        if ui.button("Start!").clicked() && self.validate_input() {
-            Some(Box::new(RunningScreen::new(
-                self.desktop_name.clone(),
-                self.signalling_server_addr.parse().unwrap(),
-            )))
+        let start_clicked = ui.add(Button::new("Start!").enabled(enabled)).clicked();
+
+        if enabled && start_clicked && self.validate_input() {
+            let (tx, rx) = oneshot::channel();
+            let desktop_name = self.desktop_name.clone();
+            let addr = self.signalling_server_addr.parse::<SocketAddr>().unwrap();
+            std::thread::spawn(move || {
+                let wss = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(net::init_signalling_connection(desktop_name, addr));
+                tx.send(wss).unwrap();
+            });
+            self.signalling_connection_init = Some(rx);
+            None
+        } else if !enabled {
+            match self.signalling_connection_init.as_mut().unwrap().try_recv() {
+                // still waiting
+                Ok(None) => None,
+                // received error
+                Err(_) => {
+                    self.error_msg = Some(format!("Error: Signalling thread panicked"));
+                    self.signalling_connection_init = None;
+                    None
+                }
+                Ok(Some(Err(err))) => {
+                    eprintln!("{:?}", err);
+                    self.error_msg = Some(format!("Error: {}", err));
+                    self.signalling_connection_init = None;
+                    None
+                }
+                // received success
+                Ok(Some(Ok(wss))) => Some(Box::new(RunningScreen::new())),
+            }
         } else {
             None
         }

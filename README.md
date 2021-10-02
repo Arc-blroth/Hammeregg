@@ -6,13 +6,26 @@
 
 Hammeregg is a remote desktop that lets you access your home computer from any browser. It leverages the WebRTC API to provide a secure, real time desktop perfect for grabbing files you forgot at home or for testing the true strength of eggshells.
 
+## Overview
+
+Hammeregg consists of three components, all of which work together:
+
+### [Desktop](hammer/hammeregg_backend)
+Hammeregg's "backend", which runs the remote desktop server on your home computer.
+
+### [Rooster](hammer/hammeregg_rooster)
+Hammeregg's signalling server, which is used to perform the initial offer/answer between your browser and your home computer.
+
+### Egg
+Hammeregg's "frontend", a single-page app that lets you remotely connect to your home computer.
+
 ## Building
 
-Hammeregg requires [Rust](https://www.rust-lang.org/), [Go](https://golang.org/), and [Node](https://nodejs.org/) to build, as well as a copy of [FFmpeg](https://www.ffmpeg.org/) to run. The backend server is implemented in `hammer/` and frontend content is implemented in `egg/`.
+Hammeregg requires [Rust](https://www.rust-lang.org/), [Go](https://golang.org/), and [Node](https://nodejs.org/) to build, as well as a copy of [FFmpeg](https://www.ffmpeg.org/) to run.
 
-To build the backend, run
+To build both Desktop and Rooster, run
 ```sh
 cd hammer
 cargo build
 ```
-Note that on Windows, the `pc-windows-gnu` toolchain is required.
+Note that on Windows, the `pc-windows-gnu` toolchain for Rust is required.
