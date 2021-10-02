@@ -5,3 +5,10 @@ authors = ["Arc-blroth <45273859+Arc-blroth@users.noreply.github.com>"]
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.44"
+clap = "3.0.0-beta.4"
+futures = "0.3.17"
+hammeregg_core = { path = "../hammeregg_core" }
+parking_lot = "0.11.2"
+tokio = { version = "1.11.0", default-features = false, features = ["macros", "rt-multi-thread"] }
+tokio-tungstenite = { version = "0.15.0", features = ["native-tls"] }

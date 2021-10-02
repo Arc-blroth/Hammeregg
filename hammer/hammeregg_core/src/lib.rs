@@ -15,10 +15,13 @@ use serde::{Deserialize, Serialize, Serializer};
 use tungstenite::Message;
 use validator::{Validate, ValidationError};
 
+/// The default port for Hammeregg signalling.
+pub const DEFAULT_HAMMEREGG_PORT: u16 = 7269;
+
 /// Magic number included in the header of
 /// an [`InitPacket`], equal to the binary
 /// representation of "🔨🥚" in UTF-8.
-pub const MAGIC: u64 = 0x_F0_9F_94_A8_F0_9F_A5_9A;
+pub const MAGIC: i64 = 0x_F0_9F_94_A8_F0_9F_A5_9A_u64 as i64;
 
 // Protocol Versions
 /// Version 1.0
@@ -28,7 +31,7 @@ pub const VERSION_1_0: u32 = 0x_00_01__00_00;
 #[derive(Serialize, Deserialize, Debug)]
 #[repr(transparent)]
 #[serde(transparent)]
-pub struct ErrorMsg(String);
+pub struct ErrorMsg(pub String);
 
 impl Display for ErrorMsg {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -64,7 +67,7 @@ pub enum HandshakePacket {
 #[derive(Serialize, Deserialize, Validate)]
 pub struct HandshakeInitPacket {
     #[validate(custom = "HandshakeInitPacket::validate_magic")]
-    magic: u64,
+    magic: i64,
     #[validate(custom = "HandshakeInitPacket::validate_version")]
     pub version: u32,
     #[validate(custom = "HandshakeInitPacket::validate_packet")]
@@ -85,7 +88,7 @@ impl HandshakeInitPacket {
     /// Validates that the magic number is correct
     /// in a [`HandshakeInitPacket`].
     #[inline]
-    fn validate_magic(magic: u64) -> Result<(), ValidationError> {
+    fn validate_magic(magic: i64) -> Result<(), ValidationError> {
         if magic == MAGIC {
             Ok(())
         } else {

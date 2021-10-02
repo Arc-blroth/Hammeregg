@@ -1,12 +1,11 @@
 use std::ffi::CString;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 
 use anyhow::Result;
 use eframe::egui::{Button, Color32, Label, TextEdit, Ui};
 use futures::channel::oneshot;
 use futures::channel::oneshot::Receiver;
-use tokio::net::TcpStream;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use hammeregg_core::DEFAULT_HAMMEREGG_PORT;
 
 use crate::net;
 use crate::net::WSS;
@@ -35,6 +34,24 @@ impl SetupScreen {
 }
 
 impl SetupScreen {
+    /// Parses the `signalling_server_addr` into a valid
+    /// [`SocketAddr`], adding the default Hammeregg
+    /// signalling port if necessary. Returns `Some` on
+    /// success and `None` on error.
+    fn try_parse_signalling_server_addr(&self) -> Option<SocketAddr> {
+        // First try to parse as a full ip:port
+        match self.signalling_server_addr.parse::<SocketAddr>() {
+            Ok(addr) => Some(addr),
+            Err(_) => {
+                // If that fails, try to parse as an ip and add on the port
+                match self.signalling_server_addr.parse::<IpAddr>() {
+                    Ok(ip) => Some(SocketAddr::new(ip, DEFAULT_HAMMEREGG_PORT)),
+                    Err(_) => None,
+                }
+            }
+        }
+    }
+
     /// Validates that:
     /// - `desktop_name` is not empty and a valid CString
     /// - `error_msg` is a valid [`IpAddr`]
@@ -54,7 +71,7 @@ impl SetupScreen {
             errors.push("desktop name cannot contain '\\0'");
         }
 
-        if self.signalling_server_addr.parse::<SocketAddr>().is_err() {
+        if self.try_parse_signalling_server_addr().is_none() {
             valid = false;
             errors.push("signalling server is not a valid ip:port");
         }
@@ -77,7 +94,7 @@ impl SetupScreen {
     fn start_signalling_connection(&mut self) {
         let (tx, rx) = oneshot::channel();
         let desktop_name = self.desktop_name.clone();
-        let addr = self.signalling_server_addr.parse::<SocketAddr>().unwrap();
+        let addr = self.try_parse_signalling_server_addr().unwrap();
         std::thread::spawn(move || {
             let wss = tokio::runtime::Builder::new_current_thread()
                 .enable_all()

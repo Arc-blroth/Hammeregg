@@ -27,7 +27,7 @@ pub type WSS = WebSocketStream<MaybeTlsStream<TcpStream>>;
 // Initializes a connection to the signalling server.
 pub async fn init_signalling_connection(desktop_name: String, addr: SocketAddr) -> Result<WSS> {
     // Connect to the signalling server
-    let mut url = Url::parse("wss://192.168.1.1:1234").unwrap();
+    let mut url = Url::parse("ws://192.168.1.1:1234").unwrap();
     url.set_ip_host(addr.ip()).unwrap();
     url.set_port(Some(addr.port())).unwrap();
     let (mut socket, _) = tokio_tungstenite::connect_async(url)
