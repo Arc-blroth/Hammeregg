@@ -5,6 +5,8 @@ use anyhow::Result;
 use eframe::egui::{Button, Color32, Label, TextEdit, Ui};
 use futures::channel::oneshot;
 use futures::channel::oneshot::Receiver;
+use tokio::net::TcpStream;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 use crate::net;
 use crate::net::WSS;
@@ -69,6 +71,47 @@ impl SetupScreen {
 
         valid
     }
+
+    /// Starts the signalling connection init
+    /// thread asynchronously.
+    fn start_signalling_connection(&mut self) {
+        let (tx, rx) = oneshot::channel();
+        let desktop_name = self.desktop_name.clone();
+        let addr = self.signalling_server_addr.parse::<SocketAddr>().unwrap();
+        std::thread::spawn(move || {
+            let wss = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(net::init_signalling_connection(desktop_name, addr));
+            tx.send(wss).unwrap();
+        });
+        self.signalling_connection_init = Some(rx);
+    }
+
+    /// Checks if the signalling connection is done
+    /// initializing, returning the connection
+    /// if initialization succeeded.
+    fn check_signalling_connection(&mut self) -> Option<WSS> {
+        match self.signalling_connection_init.as_mut().unwrap().try_recv() {
+            // still waiting
+            Ok(None) => None,
+            // received error
+            Err(_) => {
+                self.error_msg = Some(format!("Error: Signalling thread panicked"));
+                self.signalling_connection_init = None;
+                None
+            }
+            Ok(Some(Err(err))) => {
+                eprintln!("{:?}", err);
+                self.error_msg = Some(format!("Error: {}", err));
+                self.signalling_connection_init = None;
+                None
+            }
+            // received success
+            Ok(Some(Ok(wss))) => Some(wss),
+        }
+    }
 }
 
 impl Screen for SetupScreen {
@@ -95,37 +138,12 @@ impl Screen for SetupScreen {
         let start_clicked = ui.add(Button::new("Start!").enabled(enabled)).clicked();
 
         if enabled && start_clicked && self.validate_input() {
-            let (tx, rx) = oneshot::channel();
-            let desktop_name = self.desktop_name.clone();
-            let addr = self.signalling_server_addr.parse::<SocketAddr>().unwrap();
-            std::thread::spawn(move || {
-                let wss = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .unwrap()
-                    .block_on(net::init_signalling_connection(desktop_name, addr));
-                tx.send(wss).unwrap();
-            });
-            self.signalling_connection_init = Some(rx);
+            self.start_signalling_connection();
             None
         } else if !enabled {
-            match self.signalling_connection_init.as_mut().unwrap().try_recv() {
-                // still waiting
-                Ok(None) => None,
-                // received error
-                Err(_) => {
-                    self.error_msg = Some(format!("Error: Signalling thread panicked"));
-                    self.signalling_connection_init = None;
-                    None
-                }
-                Ok(Some(Err(err))) => {
-                    eprintln!("{:?}", err);
-                    self.error_msg = Some(format!("Error: {}", err));
-                    self.signalling_connection_init = None;
-                    None
-                }
-                // received success
-                Ok(Some(Ok(wss))) => Some(Box::new(RunningScreen::new())),
+            match self.check_signalling_connection() {
+                None => None,
+                Some(wss) => Some(Box::new(RunningScreen::new())),
             }
         } else {
             None
