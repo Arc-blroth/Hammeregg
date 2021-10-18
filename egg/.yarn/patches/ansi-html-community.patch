@@ -1,0 +1,13 @@
+diff --git a/index.js b/index.js
+index 7c942d6da0351ca386b5fe5e35a4d4ce35732f2d..1f65826eda66ef4eb01a603f7b03de8c9fb08038 100644
+--- a/index.js
++++ b/index.js
+@@ -59,7 +59,7 @@ function ansiHTML (text) {
+   // Cache opened sequence.
+   var ansiCodes = []
+   // Replace with markup.
+-  var ret = text.replace(/\033\[(\d+)*m/g, function (match, seq) {
++  var ret = text.replace(/\033\[(\d+)m/g, function (match, seq) {
+     var ot = _openTags[seq]
+     if (ot) {
+       // If current sequence has been opened, close it.

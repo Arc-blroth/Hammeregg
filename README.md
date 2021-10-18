@@ -10,13 +10,13 @@ Hammeregg is a remote desktop that lets you access your home computer from any b
 
 Hammeregg consists of three components, all of which work together:
 
-### [Desktop](hammer/hammeregg_backend)
+### 🔨 [Desktop](hammer/hammeregg_backend)
 Hammeregg's "backend", which runs the remote desktop server on your home computer.
 
-### [Rooster](hammer/hammeregg_rooster)
+### 🐓 [Rooster](hammer/hammeregg_rooster)
 Hammeregg's signalling server, which is used to perform the initial offer/answer between your browser and your home computer.
 
-### Egg
+### 🥚 [Egg](egg)
 Hammeregg's "frontend", a single-page app that lets you remotely connect to your home computer.
 
 ## Building

@@ -1,0 +1,24 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+@layer components {
+    .theme-ring-hover {
+        @apply hover:ring-2 hover:ring-gray-600 focus:ring-2 focus:outline-none active:ring-2 rounded-sm;
+    }
+
+    label {
+        @apply text-primary mr-2;
+    }
+    
+    input {
+        @apply bg-gray-700 text-secondary leading-extra-tight px-1 pb-0.5 align-baseline;
+        @apply theme-ring-hover focus:ring-ringblue focus:ring-opacity-75 active:ring-ringblue active:ring-opacity-75;
+    }
+
+    button {
+        @apply bg-gray-200 theme-ring-hover text-button leading-5 px-4 py-0.5;
+        /** TODO: finish styling button hover and focus to match egui **/
+        @apply theme-ring-hover focus:ring-white focus:ring-opacity-75 active:ring-white active:ring-opacity-75;
+    }
+}
