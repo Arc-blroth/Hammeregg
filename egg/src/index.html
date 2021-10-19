@@ -1,4 +1,15 @@
 <!DOCTYPE html>
+<!--
+      ,+++=%              =+===+-
+    /#===/              -%-     =#       _    _
+ ./*+...+%-            =@-       +#     | |  | |
+ #*.:^##+++#-         :%.         *+    | |__| | __ _ _ __ ___  _ __ ___   ___ _ __ ___  __ _  __ _
+  %+#   +%*+++#-      %-    .      @    |  __  |/ _` | '_ ` _ \| '_ ` _ \ / _ \ '__/ _ \/ _` |/ _` |
+          %#++++%-    @.  .        %:   | |  | | (_| | | | | | | | | | | |  __/ | |  __/ (_| | (_| |
+           =##+++##-  *+    .     :%    |_|  |_|\__,_|_| |_| |_|_| |_| |_|\___|_|  \___|\__, |\__, |
+              #++++#   +%=.     .**                                                      __/ | __/ |
+                ###       =+++=+-             https://github.com/Arc-blroth/Hammeregg   |___/ |___/
+-->
 <html>
     <head>
         <title>🥚 Hammeregg Web</title>
@@ -8,22 +19,24 @@
         <!-- force parcel to inline styles -->
         <style> @import "./index.css"; </style>
     </head>
-    
     <body class="flex items-center justify-center h-screen bg-gray-700">
         <div class="absolute w-full h-full opacity-50"></div>
         <div class="mx-auto h-auto z-50 p-5 border w-1/2 shadow-lg rounded-md bg-gray-500">
             <h1 class="text-primary text-xl mb-10">Hammeregg Web</h1>
-            <form>
+            <form id="setup">
                 <div class="mb-1.5">
                     <label for="signalling_server_ip">Desktop Name:</label>
                     <input id="desktop_name"></input>
                 </div>
-                <div class="mb-10">
+                <div class="mb-1.5">
                     <label for="signalling_server_ip">Signalling Server:</label>
                     <input id="signalling_server_ip"></input>
                 </div>
+                <label class="mb-6 block text-danger" id="setup_err">&nbsp;</label>
                 <button id="start_connection">Start!</button>
             </form>
         </div>
+        <!-- force parcel to inline scripts -->
+        <script type="module"> import './index.ts'; </script>
     </body>
 </html>

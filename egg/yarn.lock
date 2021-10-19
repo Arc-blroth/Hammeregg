@@ -1720,6 +1720,15 @@ ansi-html@0.0.7:
   languageName: node
   linkType: hard
 
+"bson@npm:^4.5.3":
+  version: 4.5.3
+  resolution: "bson@npm:4.5.3"
+  dependencies:
+    buffer: ^5.6.0
+  checksum: f01e5a19851c43a8603dcfd3964b9758632e6d778be93c70cdc8ebc490bb7a8c028480a7f0bb4fa6205283c28510f191f68bba3ebe6eb97c811412a96966491a
+  languageName: node
+  linkType: hard
+
 "buffer-from@npm:^1.0.0":
   version: 1.1.2
   resolution: "buffer-from@npm:1.1.2"
@@ -1734,7 +1743,7 @@ ansi-html@0.0.7:
   languageName: node
   linkType: hard
 
-"buffer@npm:^5.5.0":
+"buffer@npm:^5.5.0, buffer@npm:^5.6.0":
   version: 5.7.1
   resolution: "buffer@npm:5.7.1"
   dependencies:
@@ -3284,10 +3293,14 @@ fsevents@~2.3.2:
   dependencies:
     ansi-html: "patch:ansi-html@0.0.7#.yarn/patches/ansi-html-community.patch"
     autoprefixer: ^10.3.7
+    bson: ^4.5.3
     parcel: ^2.0.0-rc.0
     postcss: ^8.3.9
     postcss-import: ^14.0.2
+    range_check: ^2.0.4
     tailwindcss: ^2.2.16
+    ts-state-machines: ^1.0.3
+    typescript: ^4.4.4
   languageName: unknown
   linkType: soft
 
@@ -3709,10 +3722,26 @@ fsevents@~2.3.2:
   languageName: node
   linkType: hard
 
+"ip6@npm:^0.2.0":
+  version: 0.2.7
+  resolution: "ip6@npm:0.2.7"
+  bin:
+    ip6: ip6
+  checksum: 8f4aec2b78cbd32edb51e49c639736dbf36955b7c326f7a4511c86a9d8d183376eb0216b3cfc135662ca493e024089b08a9c34510de07256adfed76b2dad5d03
+  languageName: node
+  linkType: hard
+
 "ip@npm:^1.1.5":
   version: 1.1.5
   resolution: "ip@npm:1.1.5"
   checksum: 30133981f082a060a32644f6a7746e9ba7ac9e2bc07ecc8bbdda3ee8ca9bec1190724c390e45a1ee7695e7edfd2a8f7dda2c104ec5f7ac5068c00648504c7e5a
+  languageName: node
+  linkType: hard
+
+"ipaddr.js@npm:^1.9.1":
+  version: 1.9.1
+  resolution: "ipaddr.js@npm:1.9.1"
+  checksum: f88d3825981486f5a1942414c8d77dd6674dd71c065adcfa46f578d677edcb99fda25af42675cb59db492fdf427b34a5abfcde3982da11a8fd83a500b41cfe77
   languageName: node
   linkType: hard
 
@@ -5853,6 +5882,16 @@ fsevents@~2.3.2:
   languageName: node
   linkType: hard
 
+"range_check@npm:^2.0.4":
+  version: 2.0.4
+  resolution: "range_check@npm:2.0.4"
+  dependencies:
+    ip6: ^0.2.0
+    ipaddr.js: ^1.9.1
+  checksum: c28cdb1c0e6e0667b216bc0f28a1d97d521fd9c3f3bd284791dccb76df0bd2d869fa8da867bd7692bbb6ee27b152600dea1198d6cae1c663ece82fcd7e1b920a
+  languageName: node
+  linkType: hard
+
 "react-refresh@npm:^0.9.0":
   version: 0.9.0
   resolution: "react-refresh@npm:0.9.0"
@@ -6740,6 +6779,13 @@ fsevents@~2.3.2:
   languageName: node
   linkType: hard
 
+"ts-state-machines@npm:^1.0.3":
+  version: 1.0.3
+  resolution: "ts-state-machines@npm:1.0.3"
+  checksum: 11384780eaab5577f9c5843093fadce4a6fd91e7581164d5eb431e6a7015b9f5704ce1cc00c09d5f3523dd89f8bf544f24238fbbf851783cd3e998763242b94f
+  languageName: node
+  linkType: hard
+
 "tty-browserify@npm:^0.0.1":
   version: 0.0.1
   resolution: "tty-browserify@npm:0.0.1"
@@ -6783,6 +6829,26 @@ fsevents@~2.3.2:
   version: 0.21.3
   resolution: "type-fest@npm:0.21.3"
   checksum: e6b32a3b3877f04339bae01c193b273c62ba7bfc9e325b8703c4ee1b32dc8fe4ef5dfa54bf78265e069f7667d058e360ae0f37be5af9f153b22382cd55a9afe0
+  languageName: node
+  linkType: hard
+
+typescript@^4.4.4:
+  version: 4.4.4
+  resolution: "typescript@npm:4.4.4"
+  bin:
+    tsc: bin/tsc
+    tsserver: bin/tsserver
+  checksum: 89ecb8436bb48ef5594d49289f5f89103071716b6e4844278f4fb3362856e31203e187a9c76d205c3f0b674d221a058fd28310dbcbcf5d95e9a57229bb5203f1
+  languageName: node
+  linkType: hard
+
+"typescript@patch:typescript@^4.4.4#~builtin<compat/typescript>":
+  version: 4.4.4
+  resolution: "typescript@patch:typescript@npm%3A4.4.4#~builtin<compat/typescript>::version=4.4.4&hash=32657b"
+  bin:
+    tsc: bin/tsc
+    tsserver: bin/tsserver
+  checksum: c97c33903f1eb4f9e178649befdfc859d93157db1eccd1e521e84976ec6861db53412d8018e5e4c5d09268771c65498d42caa64bd881878346c3644f6b7cd202
   languageName: node
   linkType: hard
 

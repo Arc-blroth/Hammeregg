@@ -18,6 +18,7 @@ module.exports = {
       textColor: {
         primary: '#8b8b8b',
         secondary: '#aaaaaa',
+        danger: '#f54242',
         button: '#a8a8a8',
       },
       fontSize: {

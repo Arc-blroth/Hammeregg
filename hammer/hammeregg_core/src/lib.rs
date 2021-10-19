@@ -6,6 +6,8 @@
 //!
 //! All data structures in this crate are
 //! expected to be serialized with 🅱️son.
+//  Maintainers: keep this file synchronized with
+//  egg/src/hammeregg_core.ts
 
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -48,6 +50,7 @@ impl Error for ErrorMsg {}
 /// All other packet types consist of just this
 /// enum.
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum HandshakePacket {
     HomeInit { home_name: String },
     HomeInitResponse { response: Result<(), ErrorMsg> },
