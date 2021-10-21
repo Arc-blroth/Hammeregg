@@ -1,6 +1,9 @@
 #![feature(try_blocks)]
 
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::fs::File;
+use std::io::BufReader;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -14,6 +17,9 @@ use hammeregg_core::{
 };
 use parking_lot::Mutex;
 use tokio::net::{TcpListener, TcpStream};
+use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
+use tokio_rustls::server::TlsStream;
+use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
 
@@ -62,6 +68,9 @@ impl DesktopAndPeers {
 /// their sending end and their peers' sending ends.
 type Desktops = Arc<Mutex<HashMap<String, DesktopAndPeers>>>;
 
+/// A WebSocket Secure stream
+type WSS = WebSocketStream<TlsStream<TcpStream>>;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let default_port = DEFAULT_HAMMEREGG_PORT.to_string();
@@ -69,40 +78,79 @@ async fn main() -> Result<()> {
         (about: "A signalling server implementation for Hammeregg.")
         (version: clap::crate_version!())
         (license: clap::crate_license!())
-        (@arg IP: -a --addr default_value("127.0.0.1") validator(validate_ip) "Custom address to run Rooster on")
-        (@arg PORT: -p --port default_value(default_port.as_str()) validator(validate_port) "Custom port to run Rooster on")
+        (@arg IP: -a --addr default_value("127.0.0.1") validator(validate_ip)
+            "Custom address to run Rooster on")
+        (@arg PORT: -p --port default_value(default_port.as_str()) validator(validate_port)
+            "Custom port to run Rooster on")
+        (@arg CERTIFICATES: -c --cert required(true) takes_value(true) validator(validate_certs)
+            ".crt file to trust in Rooster's TLS certificate chain")
+        (@arg KEY: -k --key required(true) takes_value(true) validator(validate_key)
+            ".key file to use as Rooster's server private key")
     )
     .get_matches();
 
     // These use `.unwrap()` since clap has already ensured that everything is valid.
     let ip = validate_ip(matches.value_of("IP").unwrap()).unwrap();
     let port = validate_port(matches.value_of("PORT").unwrap()).unwrap();
-    let addr = SocketAddr::new(ip, port);
+    let certs = validate_certs(matches.value_of("CERTIFICATES").unwrap()).unwrap();
+    let key = validate_key(matches.value_of("KEY").unwrap()).unwrap();
 
+    let config = ServerConfig::builder()
+        .with_safe_defaults()
+        .with_no_client_auth()
+        .with_single_cert(certs, key)
+        .context("Invalid cert/key!")?;
+
+    let addr = SocketAddr::new(ip, port);
     let listener = TcpListener::bind(&addr).await.context("Couldn't bind to port")?;
+    let acceptor = TlsAcceptor::from(Arc::new(config));
     println!("Rooster listening at wss://{}", addr);
 
     let desktops = Desktops::default();
 
     while let Ok((stream, _)) = listener.accept().await {
-        tokio::spawn(handle_connection(desktops.clone(), stream));
+        tokio::spawn(handle_connection(acceptor.clone(), stream, desktops.clone()));
     }
 
     Ok(())
 }
 
+fn display_err<E: Display>(err: E) -> String {
+    format!("{}", err)
+}
+
 fn validate_port(val: &str) -> Result<u16, String> {
-    u16::from_str(val).map_err(|err| format!("{}", err))
+    u16::from_str(val).map_err(display_err)
 }
 
 fn validate_ip(val: &str) -> Result<IpAddr, String> {
-    IpAddr::from_str(val).map_err(|err| format!("{}", err))
+    IpAddr::from_str(val).map_err(display_err)
+}
+
+fn validate_certs(val: &str) -> Result<Vec<Certificate>, String> {
+    rustls_pemfile::certs(&mut BufReader::new(File::open(val).map_err(display_err)?))
+        .map(|mut certs| certs.drain(..).map(Certificate).collect())
+        .map_err(display_err)
+}
+
+fn validate_key(val: &str) -> Result<PrivateKey, String> {
+    let mut keys = rustls_pemfile::rsa_private_keys(&mut BufReader::new(File::open(val).map_err(display_err)?))
+        .map_err(display_err)?;
+    if !keys.is_empty() {
+        Ok(PrivateKey(keys.swap_remove(0)))
+    } else {
+        Err("Key file must contain a single key".to_string())
+    }
 }
 
 // Generic handler for both Desktop and Egg connections.
-async fn handle_connection(desktops: Desktops, stream: TcpStream) {
+async fn handle_connection(acceptor: TlsAcceptor, stream: TcpStream, desktops: Desktops) {
     let res: Result<()> = try {
-        let mut socket = tokio_tungstenite::accept_async(stream)
+        let tls_stream = acceptor
+            .accept(stream)
+            .await
+            .context("Error during the TLS handshake occurred")?;
+        let mut socket = tokio_tungstenite::accept_async(tls_stream)
             .await
             .context("Error during the websocket handshake occurred")?;
 
@@ -130,7 +178,7 @@ async fn handle_connection(desktops: Desktops, stream: TcpStream) {
     }
 }
 
-async fn handle_home_init(desktops: Desktops, mut socket: WebSocketStream<TcpStream>, home_name: String) -> Result<()> {
+async fn handle_home_init(desktops: Desktops, mut socket: WSS, home_name: String) -> Result<()> {
     if desktops.lock().contains_key(&home_name) {
         // oops there's already another computer with this name
         socket
@@ -196,11 +244,7 @@ async fn handle_home_init(desktops: Desktops, mut socket: WebSocketStream<TcpStr
     Ok(())
 }
 
-async fn handle_remote_init(
-    desktops: Desktops,
-    mut socket: WebSocketStream<TcpStream>,
-    home_name: String,
-) -> Result<()> {
+async fn handle_remote_init(desktops: Desktops, mut socket: WSS, home_name: String) -> Result<()> {
     if !desktops.lock().contains_key(&home_name) {
         // oops desktop does not exist
         socket

@@ -77,7 +77,7 @@ function initSignallingConnection(desktopName: string, signallingAddr: string) {
     } as const)
     let state: StateMachineInstance<typeof SignallingStateMachine.config> = SignallingStateMachine()
 
-    let connection = new WebSocket("ws://" + signallingAddr)
+    let connection = new WebSocket("wss://" + signallingAddr)
     connection.binaryType = "arraybuffer"
     connection.onopen = e => {
         let initPacket = BSON.serialize(<core.HandshakeInitPacket> {

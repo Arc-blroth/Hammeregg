@@ -1,4 +1,6 @@
 use std::ffi::{CStr, CString};
+use std::fs::File;
+use std::io::BufReader;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::os::raw::c_char;
@@ -15,8 +17,9 @@ use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use tokio::net::TcpStream;
+use tokio_rustls::rustls::{Certificate, ClientConfig, OwnedTrustAnchor, RootCertStore};
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{client_async_tls_with_config, Connector, MaybeTlsStream, WebSocketStream};
 use url::Url;
 
 use crate::pion;
@@ -25,14 +28,47 @@ use crate::pion::PeerConnection;
 pub type WSS = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 // Initializes a connection to the signalling server.
-pub async fn init_signalling_connection(desktop_name: String, addr: SocketAddr) -> Result<WSS> {
+pub async fn init_signalling_connection(
+    desktop_name: String,
+    addr: SocketAddr,
+    extra_ca: Option<String>,
+) -> Result<WSS> {
+    // Setup TLS
+    let mut root_store = RootCertStore::empty();
+    root_store.add_server_trust_anchors(
+        webpki_roots::TLS_SERVER_ROOTS
+            .0
+            .iter()
+            .map(|x| OwnedTrustAnchor::from_subject_spki_name_constraints(x.subject, x.spki, x.name_constraints)),
+    );
+
+    // Load ca.crt, if it exists
+    if let Some(extra_ca_path) = extra_ca {
+        let file = File::open(extra_ca_path).context("Couldn't open root certificate")?;
+        let certs: Vec<_> = rustls_pemfile::certs(&mut BufReader::new(file))
+            .map(|mut certs| certs.drain(..).map(Certificate).collect())?;
+        for cert in certs {
+            root_store.add(&cert)?;
+        }
+    }
+
+    let config = ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+    let connector = Connector::Rustls(Arc::new(config));
+
     // Connect to the signalling server
-    let mut url = Url::parse("ws://192.168.1.1:1234").unwrap();
+    let mut url = Url::parse("wss://192.168.1.1:1234").unwrap();
     url.set_ip_host(addr.ip()).unwrap();
     url.set_port(Some(addr.port())).unwrap();
-    let (mut socket, _) = tokio_tungstenite::connect_async(url)
+
+    let stream = TcpStream::connect(addr)
         .await
-        .context("Could not connect to signalling server")?;
+        .context("Couldn't connect to signalling server")?;
+    let (mut socket, _) = client_async_tls_with_config(url, stream, None, Some(connector))
+        .await
+        .context("Couldn't connect to signalling server: TLS or WebSocket handshake failed")?;
 
     // Hammeregg Signalling Handshake
     // First, send a HomeInit packet to the signalling server.

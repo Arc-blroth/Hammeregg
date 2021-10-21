@@ -15,6 +15,7 @@ use crate::ui::screen::Screen;
 pub struct SetupScreen {
     desktop_name: String,
     signalling_server_addr: String,
+    extra_ca: Option<String>,
     error_msg: Option<String>,
     signalling_connection_init: Option<Receiver<Result<WSS>>>,
 }
@@ -27,6 +28,7 @@ impl SetupScreen {
         Self {
             desktop_name: names::Generator::default().next().unwrap(),
             signalling_server_addr: String::default(),
+            extra_ca: None,
             error_msg: None,
             signalling_connection_init: None,
         }
@@ -95,12 +97,13 @@ impl SetupScreen {
         let (tx, rx) = oneshot::channel();
         let desktop_name = self.desktop_name.clone();
         let addr = self.try_parse_signalling_server_addr().unwrap();
+        let extra_ca = self.extra_ca.clone();
         std::thread::spawn(move || {
             let wss = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .unwrap()
-                .block_on(net::init_signalling_connection(desktop_name, addr));
+                .block_on(net::init_signalling_connection(desktop_name, addr, extra_ca));
             tx.send(wss).unwrap();
         });
         self.signalling_connection_init = Some(rx);
@@ -135,7 +138,7 @@ impl Screen for SetupScreen {
     fn update(&mut self, ui: &mut Ui) -> Option<Box<dyn Screen>> {
         let enabled = self.signalling_connection_init.is_none();
 
-        ui.heading("Hammeregg Config");
+        ui.heading("Hammeregg Desktop");
         ui.add_space(32.0);
         ui.horizontal(|ui| {
             ui.label("Desktop Name: ");
@@ -145,6 +148,13 @@ impl Screen for SetupScreen {
         ui.horizontal(|ui| {
             ui.label("Signalling Server: ");
             ui.add(TextEdit::singleline(&mut self.signalling_server_addr).enabled(enabled));
+        });
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label("Root CA (Optional): ").on_hover_text("An additional root certificate authority to trust when\nauthenticating the signalling server connection.");
+            let mut editable_ca_field = self.extra_ca.clone().unwrap_or("".to_string());
+            ui.add(TextEdit::singleline(&mut editable_ca_field).enabled(enabled));
+            self.extra_ca = if editable_ca_field.trim().is_empty() { None } else { Some(editable_ca_field) };
         });
         ui.add_space(4.0);
         ui.label(

@@ -10,5 +10,5 @@ edition = "2021"
 anyhow = "1.0.44"
 bson = "2.0.0"
 serde = { version = "1.0.130", features = ["derive"] }
-tungstenite = "0.14.0"
+tungstenite = "0.15.0"
 validator = { version = "0.14.0", features = ["derive"] }
