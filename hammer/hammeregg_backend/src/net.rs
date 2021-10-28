@@ -52,16 +52,23 @@ pub async fn init_signalling_connection(
         }
     }
 
-    let config = ClientConfig::builder()
+    let mut config = ClientConfig::builder()
         .with_safe_defaults()
         .with_root_certificates(root_store)
         .with_no_client_auth();
+
+    // TODO THIS IS POSSIBLY A BAD IDEA
+    // Since webpki doesn't handle IP SANs (see briansmith/webpki#54),
+    // SNI is guaranteed to fail from Hammeregg Desktop.
+    // This line of code should be removed once IP SANs are finally
+    // implemented in webpki.
+    config.enable_sni = false;
+
     let connector = Connector::Rustls(Arc::new(config));
 
     // Connect to the signalling server
-    let mut url = Url::parse("wss://192.168.1.1:1234").unwrap();
-    url.set_ip_host(addr.ip()).unwrap();
-    url.set_port(Some(addr.port())).unwrap();
+    // The server **must** present a certificate with hammeregg.default as a SAN.
+    let mut url = Url::parse("wss://hammeregg.default").unwrap();
 
     let stream = TcpStream::connect(addr)
         .await
