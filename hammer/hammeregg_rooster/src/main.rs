@@ -15,6 +15,7 @@ use hammeregg_core::{
     deserialize_and_validate_packet, deserialize_packet, serialize_packet, ErrorMsg, HandshakeInitPacket,
     HandshakePacket, DEFAULT_HAMMEREGG_PORT,
 };
+use log::LevelFilter;
 use parking_lot::Mutex;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
@@ -73,6 +74,8 @@ type WSS = WebSocketStream<TlsStream<TcpStream>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    init_logging();
+
     let default_port = DEFAULT_HAMMEREGG_PORT.to_string();
     let matches = clap::clap_app!("Hammeregg Rooster" =>
         (about: "A signalling server implementation for Hammeregg.")
@@ -113,6 +116,18 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn init_logging() {
+    let mut builder = pretty_env_logger::formatted_builder();
+    builder.filter_level(LevelFilter::Info);
+    if let Ok(s) = std::env::var("RUST_LOG") {
+        builder.parse_filters(&s);
+    }
+    if let Ok(s) = std::env::var("RUST_LOG_STYLE") {
+        builder.parse_write_style(&s);
+    }
+    builder.try_init().unwrap();
 }
 
 fn display_err<E: Display>(err: E) -> String {
@@ -174,7 +189,7 @@ async fn handle_connection(acceptor: TlsAcceptor, stream: TcpStream, desktops: D
         }
     };
     if let Err(err) = res {
-        eprintln!("{:?}", err);
+        log::error!("{:?}\n", err);
     }
 }
 
@@ -193,6 +208,7 @@ async fn handle_home_init(desktops: Desktops, mut socket: WSS, home_name: String
                 response: Ok(()),
             })?)
             .await?;
+        log::info!("Home desktop '{}' connected", home_name);
 
         let (tx, rx) = unbounded();
         // Insert sender into desktop map
@@ -240,6 +256,7 @@ async fn handle_home_init(desktops: Desktops, mut socket: WSS, home_name: String
                 peer.close_channel();
             });
         }
+        log::info!("Home desktop '{}' disconnected", home_name);
     }
     Ok(())
 }
@@ -267,6 +284,8 @@ async fn handle_remote_init(desktops: Desktops, mut socket: WSS, home_name: Stri
             .get_mut(&home_name)
             .context("Desktop disappeared during remote init?")?
             .insert_peer(tx);
+
+        log::info!("Remote with id {} connected", id);
 
         let (send, recv) = socket.split();
 
@@ -309,6 +328,7 @@ async fn handle_remote_init(desktops: Desktops, mut socket: WSS, home_name: Stri
         if let Some(desktop) = desktop_map.get_mut(&home_name) {
             desktop.remove_peer(&id);
         }
+        log::info!("Remote with id {} disconnected", id);
     }
     Ok(())
 }
