@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use futures::channel::mpsc::{unbounded, UnboundedSender};
+use futures::future::Either;
 use futures::{future, pin_mut, SinkExt, StreamExt, TryStreamExt};
 use hammeregg_core::{
     deserialize_and_validate_packet, deserialize_packet, serialize_packet, ErrorMsg, HandshakeInitPacket,
@@ -247,7 +248,10 @@ async fn handle_home_init(desktops: Desktops, mut socket: WSS, home_name: String
             });
 
         pin_mut!(send_home, send_peer);
-        future::select(send_home, send_peer).await;
+        match future::select(send_home, send_peer).await {
+            Either::Left(_) => {}
+            Either::Right(res) => res.0?,
+        }
 
         // Disconnect
         let mut desktop_map = desktops.lock();
@@ -321,7 +325,10 @@ async fn handle_remote_init(desktops: Desktops, mut socket: WSS, home_name: Stri
             });
 
         pin_mut!(send_remote, send_home);
-        future::select(send_remote, send_home).await;
+        match future::select(send_remote, send_home).await {
+            Either::Left(_) => {}
+            Either::Right(res) => res.0?,
+        }
 
         // Disconnect
         let mut desktop_map = desktops.lock();
