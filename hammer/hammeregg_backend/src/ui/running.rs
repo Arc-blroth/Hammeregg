@@ -1,12 +1,15 @@
 use eframe::egui::Ui;
 
+use crate::net::WSS;
 use crate::ui::screen::Screen;
 
-pub struct RunningScreen {}
+pub struct RunningScreen {
+    wss: WSS,
+}
 
 impl RunningScreen {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(wss: WSS) -> Self {
+        Self { wss }
     }
 }
 

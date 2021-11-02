@@ -170,7 +170,7 @@ impl Screen for SetupScreen {
         } else if !enabled {
             match self.check_signalling_connection() {
                 None => None,
-                Some(wss) => Some(Box::new(RunningScreen::new())),
+                Some(wss) => Some(Box::new(RunningScreen::new(wss))),
             }
         } else {
             None
