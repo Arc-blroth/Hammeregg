@@ -2,14 +2,14 @@ use std::ffi::CString;
 use std::net::{IpAddr, SocketAddr};
 
 use anyhow::Result;
-use eframe::egui::{Button, Color32, Label, TextEdit, Ui};
+use eframe::egui::{Button, Label, TextEdit, Ui};
 use futures::channel::oneshot;
 use futures::channel::oneshot::Receiver;
 use hammeregg_core::DEFAULT_HAMMEREGG_PORT;
 
 use crate::net;
 use crate::net::WSS;
-use crate::ui::running::RunningScreen;
+use crate::ui::keygen::KeygenScreen;
 use crate::ui::screen::Screen;
 
 pub struct SetupScreen {
@@ -29,6 +29,18 @@ impl SetupScreen {
             desktop_name: names::Generator::default().next().unwrap(),
             signalling_server_addr: String::default(),
             extra_ca: None,
+            error_msg: None,
+            signalling_connection_init: None,
+        }
+    }
+
+    /// Creates a new SetupScreen with prefilled
+    /// fields.
+    pub fn recover(desktop_name: String, signalling_server_addr: String, extra_ca: Option<String>) -> Self {
+        Self {
+            desktop_name,
+            signalling_server_addr,
+            extra_ca,
             error_msg: None,
             signalling_connection_init: None,
         }
@@ -118,7 +130,7 @@ impl SetupScreen {
             Ok(None) => None,
             // received error
             Err(_) => {
-                self.error_msg = Some(format!("Error: Signalling thread panicked"));
+                self.error_msg = Some("Error: Signalling thread panicked".to_string());
                 self.signalling_connection_init = None;
                 None
             }
@@ -135,11 +147,9 @@ impl SetupScreen {
 }
 
 impl Screen for SetupScreen {
-    fn update(&mut self, ui: &mut Ui) -> Option<Box<dyn Screen>> {
+    fn update(mut self: Box<Self>, ui: &mut Ui) -> (Box<dyn Screen>, bool) {
         let enabled = self.signalling_connection_init.is_none();
 
-        ui.heading("Hammeregg Desktop");
-        ui.add_space(32.0);
         ui.horizontal(|ui| {
             ui.label("Desktop Name: ");
             ui.add(TextEdit::singleline(&mut self.desktop_name).enabled(enabled));
@@ -157,23 +167,28 @@ impl Screen for SetupScreen {
             self.extra_ca = if editable_ca_field.trim().is_empty() { None } else { Some(editable_ca_field) };
         });
         ui.add_space(4.0);
-        ui.label(
-            Label::new(self.error_msg.as_ref().unwrap_or(&String::default()))
-                .text_color(Color32::from_rgb(245, 66, 66)),
-        );
+        ui.label(Label::new(self.error_msg.as_ref().unwrap_or(&String::default())).text_color(super::ERROR_COLOR));
         ui.add_space(16.0);
         let start_clicked = ui.add(Button::new("Start!").enabled(enabled)).clicked();
 
         if enabled && start_clicked && self.validate_input() {
             self.start_signalling_connection();
-            None
+            (self, false)
         } else if !enabled {
             match self.check_signalling_connection() {
-                None => None,
-                Some(wss) => Some(Box::new(RunningScreen::new(wss))),
+                None => (self, false),
+                Some(wss) => (
+                    Box::new(KeygenScreen::new(
+                        self.desktop_name,
+                        self.signalling_server_addr,
+                        self.extra_ca,
+                        wss,
+                    )),
+                    true,
+                ),
             }
         } else {
-            None
+            (self, false)
         }
     }
 }

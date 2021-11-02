@@ -161,3 +161,14 @@ where
         _ => Err(anyhow!("Packet must be a binary message")),
     }
 }
+
+/// The home public key and remote private key combo
+/// that serves as Hammeregg's password.
+///
+/// Both keys are stored as PEM strings in this struct.
+// not Deserialize since this is never read by Rust code
+#[derive(Serialize)]
+pub struct RemotePassword {
+    pub home_public_key: String,
+    pub remote_private_key: String,
+}

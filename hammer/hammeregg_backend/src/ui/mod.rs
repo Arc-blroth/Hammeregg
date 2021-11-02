@@ -1,8 +1,9 @@
+pub mod keygen;
 pub mod running;
 pub mod screen;
 pub mod setup;
 
-use eframe::egui::{Align2, CtxRef, FontDefinitions, Rgba, Vec2, Window};
+use eframe::egui::{Align2, Color32, CtxRef, FontDefinitions, Rgba, Vec2, Window};
 use eframe::epi::{App, Frame, Storage};
 use eframe::NativeOptions;
 
@@ -11,10 +12,11 @@ use crate::ui::setup::SetupScreen;
 
 const APP_NAME: &str = "Hammeregg Desktop";
 const WINDOW_PADDING: Vec2 = Vec2::splat(16.0);
+pub const ERROR_COLOR: Color32 = Color32::from_rgb(245, 66, 66);
 
 /// The main Hammeregg UI app.
 pub struct UI {
-    current_screen: Box<dyn Screen>,
+    current_screen: Option<Box<dyn Screen>>,
     packed: bool,
     clear_color: Option<Rgba>,
 }
@@ -23,7 +25,7 @@ impl UI {
     /// Creates a UI with the given screen.
     pub fn new<S: Screen + 'static>(screen: S) -> Self {
         Self {
-            current_screen: Box::new(screen),
+            current_screen: Some(Box::new(screen)),
             packed: false,
             clear_color: None,
         }
@@ -45,15 +47,17 @@ impl App for UI {
             })
             .show(ctx, |ui| {
                 ui.style_mut().spacing.button_padding = Vec2::new(16.0, 4.0);
+                ui.heading("Hammeregg Desktop");
+                ui.add_space(32.0);
 
-                let maybe_new_screen = self.current_screen.update(ui);
+                let (new_screen, pack_next_frame) = self.current_screen.take().unwrap().update(ui);
                 // Pack the window if the screen changed last frame.
                 if !self.packed {
                     frame.set_window_size(ui.min_size() + 2.0 * WINDOW_PADDING);
                     self.packed = true;
                 }
-                if let Some(new_screen) = maybe_new_screen {
-                    self.current_screen = new_screen;
+                self.current_screen = Some(new_screen);
+                if pack_next_frame {
                     self.packed = false;
                 }
             });

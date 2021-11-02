@@ -104,7 +104,7 @@ pub async fn init_signalling_connection(
     Ok(socket)
 }
 
-async fn handle_signalling_requests(
+pub async fn handle_signalling_requests(
     socket: WSS,
     home_private_key: RsaPrivateKey,
     remote_public_key: RsaPublicKey,

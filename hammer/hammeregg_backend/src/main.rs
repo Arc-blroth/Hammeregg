@@ -5,6 +5,7 @@
 #![feature(try_blocks)]
 #![windows_subsystem = "windows"]
 
+pub mod key;
 pub mod net;
 pub mod pion;
 pub mod ui;
