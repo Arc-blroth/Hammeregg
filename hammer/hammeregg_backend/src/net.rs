@@ -109,59 +109,63 @@ pub async fn handle_signalling_requests(
     home_private_key: RsaPrivateKey,
     remote_public_key: RsaPublicKey,
 ) -> Result<()> {
-    let (send, recv) = socket.split();
+    let (send, mut recv) = socket.split();
     let connection_and_stop_future: AtomicRefCell<Option<(PeerConnection, Arc<AtomicBool>)>> = AtomicRefCell::new(None);
-    recv.filter_map(|packet| {
-        let res: Result<BoxFuture<Result<Message>>> = try {
-            match deserialize_packet::<HandshakePacket>(&packet.context("Signalling failed: could not read packet")?)? {
-                HandshakePacket::RemoteOffer { peer, payload } => {
-                    // Do we already have a connection?
-                    let can_accept = match connection_and_stop_future.borrow().deref() {
-                        None => true,
-                        Some((_, stop_notifier)) => stop_notifier.load(Ordering::SeqCst),
-                    };
-                    if !can_accept {
-                        // If we're already connected to another client,
-                        // return an error to the remote.
-                        future::ready(serialize_packet(&HandshakePacket::HomeAnswerFailure {
-                            peer,
-                            error: "Another client is already connected".to_string(),
-                        }))
-                        .boxed()
-                    } else {
-                        handle_remote_offer(
-                            connection_and_stop_future.borrow_mut(),
-                            peer,
-                            payload,
-                            &home_private_key,
-                            &remote_public_key,
-                        )
-                        .boxed()
-                    }
-                }
-                _ => Err(anyhow!("Signalling failed: did not get a RemoteOffer packet"))?,
-            }
-        };
-        match res {
-            Ok(inner) => inner
-                .then(|inner_res| {
-                    future::ready(match inner_res {
-                        Ok(inner) => Some(Ok(inner)),
-                        Err(err) => {
-                            eprintln!("{:?}", err);
-                            None
-                        }
-                    })
-                })
-                .boxed(),
-            Err(err) => {
-                eprintln!("{:?}", err);
-                future::ready(None).boxed()
-            }
-        }
-    })
-    .forward(send)
-    .await?;
+    while let Some(msg) = recv.next().await {
+        println!("{:?}", msg);
+    }
+    println!("none");
+    // recv.filter_map(|packet| {
+    //     let res: Result<BoxFuture<Result<Message>>> = try {
+    //         match deserialize_packet::<HandshakePacket>(&packet.context("Signalling failed: could not read packet")?)? {
+    //             HandshakePacket::RemoteOffer { peer, payload } => {
+    //                 // Do we already have a connection?
+    //                 let can_accept = match connection_and_stop_future.borrow().deref() {
+    //                     None => true,
+    //                     Some((_, stop_notifier)) => stop_notifier.load(Ordering::SeqCst),
+    //                 };
+    //                 if !can_accept {
+    //                     // If we're already connected to another client,
+    //                     // return an error to the remote.
+    //                     future::ready(serialize_packet(&HandshakePacket::HomeAnswerFailure {
+    //                         peer,
+    //                         error: "Another client is already connected".to_string(),
+    //                     }))
+    //                     .boxed()
+    //                 } else {
+    //                     handle_remote_offer(
+    //                         connection_and_stop_future.borrow_mut(),
+    //                         peer,
+    //                         payload,
+    //                         &home_private_key,
+    //                         &remote_public_key,
+    //                     )
+    //                     .boxed()
+    //                 }
+    //             }
+    //             _ => Err(anyhow!("Signalling failed: did not get a RemoteOffer packet"))?,
+    //         }
+    //     };
+    //     match res {
+    //         Ok(inner) => inner
+    //             .then(|inner_res| {
+    //                 future::ready(match inner_res {
+    //                     Ok(inner) => Some(Ok(inner)),
+    //                     Err(err) => {
+    //                         eprintln!("{:?}", err);
+    //                         None
+    //                     }
+    //                 })
+    //             })
+    //             .boxed(),
+    //         Err(err) => {
+    //             eprintln!("{:?}", err);
+    //             future::ready(None).boxed()
+    //         }
+    //     }
+    // })
+    // .forward(send)
+    // .await?;
     Ok(())
 }
 

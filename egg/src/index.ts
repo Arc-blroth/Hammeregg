@@ -102,7 +102,11 @@ function initSignallingConnection(desktopName: string, signallingAddr: string) {
                     if(initResponse.response.hasOwnProperty("Err")) {
                         throw (initResponse.response as core.ResultErr).Err
                     } else {
-
+                        connection.send(BSON.serialize(<core.RemoteOfferHandshakePacket> {
+                            type: core.HandshakePacketType.REMOTE_OFFER,
+                            peer: 0,
+                            payload: [],
+                        }))
                     }
                     break
                 }

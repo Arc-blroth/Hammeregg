@@ -63,7 +63,7 @@ export interface RemoteInitResponseHandshakePacket {
 export interface RemoteOfferHandshakePacket {
     type: HandshakePacketType.REMOTE_OFFER;
     peer: number;
-    payload: Uint8Array;
+    payload: Array<number>;
 }
 
 export interface HomeAnswerSuccessHandshakePacket {

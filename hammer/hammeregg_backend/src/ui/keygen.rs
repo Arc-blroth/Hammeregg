@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use eframe::egui::{Label, Ui};
 use futures::channel::oneshot;
 use futures::channel::oneshot::Receiver;
@@ -30,7 +28,6 @@ impl KeygenScreen {
             // Key generation can take ~5 seconds even on a fast computer
             tx.send(key::gen_home_and_remote_keys()).unwrap();
         });
-        let loading_start_time = Instant::now();
         Self {
             desktop_name,
             signalling_server_addr,

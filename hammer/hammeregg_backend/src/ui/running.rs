@@ -18,7 +18,7 @@ impl RunningScreen {
         let (home_private_key, remote_private_key) = password;
         let home_public_key = home_private_key.to_public_key();
         let remote_public_key = remote_private_key.to_public_key();
-        std::thread::spawn(move || {
+        let handle = std::thread::spawn(move || {
             tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -31,6 +31,10 @@ impl RunningScreen {
                 .context("Couldn't handle signalling requests")
                 .unwrap();
         });
+        std::thread::spawn(move || {
+            println!("{:?}", handle.join());
+        });
+
         let home_public_pem = home_public_key.to_pkcs1_pem().unwrap();
         let remote_private_pem = remote_private_key.to_pkcs1_pem().unwrap();
         let password = Some(RemotePassword {
