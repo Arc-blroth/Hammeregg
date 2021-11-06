@@ -33,6 +33,8 @@ pub async fn init_signalling_connection(
     addr: SocketAddr,
     extra_ca: Option<String>,
 ) -> Result<WSS> {
+    println!("Connecting to signalling server {} with name {}", addr, desktop_name);
+
     // Setup TLS
     let mut root_store = RootCertStore::empty();
     root_store.add_server_trust_anchors(
@@ -68,7 +70,7 @@ pub async fn init_signalling_connection(
 
     // Connect to the signalling server
     // The server **must** present a certificate with hammeregg.default as a SAN.
-    let mut url = Url::parse("wss://hammeregg.default").unwrap();
+    let url = Url::parse("wss://hammeregg.default").unwrap();
 
     let stream = TcpStream::connect(addr)
         .await
@@ -170,6 +172,12 @@ async fn handle_remote_offer<'a>(
     home_private_key: &RsaPrivateKey,
     remote_public_key: &RsaPublicKey,
 ) -> Result<Message> {
+    println!(
+        "Handling remote offer from peer {} with payload length {}",
+        peer,
+        payload.len()
+    );
+
     let result = try {
         // Deserialize payload
         let decrypted_payload = home_private_key

@@ -154,24 +154,24 @@ impl Screen for SetupScreen {
 
         ui.horizontal(|ui| {
             ui.label("Desktop Name: ");
-            ui.add(TextEdit::singleline(&mut self.desktop_name).enabled(enabled));
+            ui.add_enabled(enabled, TextEdit::singleline(&mut self.desktop_name));
         });
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.label("Signalling Server: ");
-            ui.add(TextEdit::singleline(&mut self.signalling_server_addr).enabled(enabled));
+            ui.add_enabled(enabled, TextEdit::singleline(&mut self.signalling_server_addr));
         });
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.label("Root CA (Optional): ").on_hover_text("An additional root certificate authority to trust when\nauthenticating the signalling server connection.");
             let mut editable_ca_field = self.extra_ca.clone().unwrap_or("".to_string());
-            ui.add(TextEdit::singleline(&mut editable_ca_field).enabled(enabled));
+            ui.add_enabled(enabled, TextEdit::singleline(&mut editable_ca_field));
             self.extra_ca = if editable_ca_field.trim().is_empty() { None } else { Some(editable_ca_field) };
         });
         ui.add_space(4.0);
-        ui.label(Label::new(self.error_msg.as_ref().unwrap_or(&String::default())).text_color(super::ERROR_COLOR));
+        ui.add(Label::new(self.error_msg.as_ref().unwrap_or(&String::default())).text_color(super::ERROR_COLOR));
         ui.add_space(16.0);
-        let start_clicked = ui.add(Button::new("Start!").enabled(enabled)).clicked();
+        let start_clicked = ui.add_enabled(enabled, Button::new("Start!")).clicked();
 
         if enabled && start_clicked && self.validate_input() {
             self.start_signalling_connection();
