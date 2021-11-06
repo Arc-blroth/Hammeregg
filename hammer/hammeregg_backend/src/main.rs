@@ -9,6 +9,7 @@ pub mod key;
 pub mod net;
 pub mod pion;
 pub mod ui;
+pub mod work;
 
 fn main() {
     ui::show_ui();

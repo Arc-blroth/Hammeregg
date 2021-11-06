@@ -109,9 +109,11 @@ pub async fn handle_signalling_requests(
     home_private_key: RsaPrivateKey,
     remote_public_key: RsaPublicKey,
 ) -> Result<()> {
-    let (send, recv) = socket.split();
+    let (mut send, mut recv) = socket.split();
     let connection_and_stop_future: AtomicRefCell<Option<(PeerConnection, Arc<AtomicBool>)>> = AtomicRefCell::new(None);
-    recv.filter_map(|packet| {
+
+    // purely functional version of this loop blocked on https://github.com/rust-lang/rust/issues/90656
+    while let Some(packet) = recv.next().await {
         let res: Result<BoxFuture<Result<Message>>> = try {
             match deserialize_packet::<HandshakePacket>(&packet.context("Signalling failed: could not read packet")?)? {
                 HandshakePacket::RemoteOffer { peer, payload } => {
@@ -144,24 +146,20 @@ pub async fn handle_signalling_requests(
         };
         match res {
             Ok(inner) => inner
-                .then(|inner_res| {
-                    future::ready(match inner_res {
-                        Ok(inner) => Some(Ok(inner)),
-                        Err(err) => {
-                            eprintln!("{:?}", err);
-                            None
-                        }
-                    })
+                .then(|inner_res| match inner_res {
+                    Ok(inner) => send.send(inner).boxed(),
+                    Err(err) => {
+                        eprintln!("{:?}", err);
+                        future::ready(Ok(())).boxed()
+                    }
                 })
-                .boxed(),
+                .await
+                .context("Signalling handler loop crashed")?,
             Err(err) => {
                 eprintln!("{:?}", err);
-                future::ready(None).boxed()
             }
         }
-    })
-    .forward(send)
-    .await?;
+    }
     Ok(())
 }
 
@@ -202,7 +200,8 @@ async fn handle_remote_offer<'a>(
         *connection_and_stop_future = Some((connection, stop_notifier));
         message
     };
-    if let Err(_) = result {
+    if let Err(err) = result {
+        eprintln!("{:?}", err);
         // Notify the remote that signalling failed
         Ok(serialize_packet(&HandshakePacket::HomeAnswerFailure {
             peer,

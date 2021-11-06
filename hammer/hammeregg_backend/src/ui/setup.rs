@@ -3,7 +3,6 @@ use std::net::{IpAddr, SocketAddr};
 
 use anyhow::Result;
 use eframe::egui::{Button, Label, TextEdit, Ui};
-use futures::channel::oneshot;
 use futures::channel::oneshot::Receiver;
 use hammeregg_core::DEFAULT_HAMMEREGG_PORT;
 
@@ -11,8 +10,10 @@ use crate::net;
 use crate::net::WSS;
 use crate::ui::keygen::KeygenScreen;
 use crate::ui::screen::Screen;
+use crate::work::WorkThread;
 
 pub struct SetupScreen {
+    work_thread: WorkThread,
     desktop_name: String,
     signalling_server_addr: String,
     extra_ca: Option<String>,
@@ -24,8 +25,9 @@ impl SetupScreen {
     /// Creates a new SetupScreen with the
     /// `desktop_name` field set to a random
     /// value and all other fields blank.
-    pub fn new() -> Self {
+    pub fn new(work_thread: WorkThread) -> Self {
         Self {
+            work_thread,
             desktop_name: names::Generator::default().next().unwrap(),
             signalling_server_addr: String::default(),
             extra_ca: None,
@@ -36,8 +38,14 @@ impl SetupScreen {
 
     /// Creates a new SetupScreen with prefilled
     /// fields.
-    pub fn recover(desktop_name: String, signalling_server_addr: String, extra_ca: Option<String>) -> Self {
+    pub fn recover(
+        work_thread: WorkThread,
+        desktop_name: String,
+        signalling_server_addr: String,
+        extra_ca: Option<String>,
+    ) -> Self {
         Self {
+            work_thread,
             desktop_name,
             signalling_server_addr,
             extra_ca,
@@ -106,18 +114,12 @@ impl SetupScreen {
     /// Starts the signalling connection init
     /// thread asynchronously.
     fn start_signalling_connection(&mut self) {
-        let (tx, rx) = oneshot::channel();
         let desktop_name = self.desktop_name.clone();
         let addr = self.try_parse_signalling_server_addr().unwrap();
         let extra_ca = self.extra_ca.clone();
-        std::thread::spawn(move || {
-            let wss = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(net::init_signalling_connection(desktop_name, addr, extra_ca));
-            tx.send(wss).unwrap();
-        });
+        let rx = self
+            .work_thread
+            .spawn_task(net::init_signalling_connection(desktop_name, addr, extra_ca));
         self.signalling_connection_init = Some(rx);
     }
 
@@ -179,6 +181,7 @@ impl Screen for SetupScreen {
                 None => (self, false),
                 Some(wss) => (
                     Box::new(KeygenScreen::new(
+                        self.work_thread,
                         self.desktop_name,
                         self.signalling_server_addr,
                         self.extra_ca,

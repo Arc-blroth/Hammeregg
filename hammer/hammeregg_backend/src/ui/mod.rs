@@ -3,12 +3,13 @@ pub mod running;
 pub mod screen;
 pub mod setup;
 
-use eframe::egui::{Align2, Color32, CtxRef, FontDefinitions, Rgba, Vec2, Window};
+use eframe::egui::{Align2, Color32, CtxRef, FontDefinitions, Rgba, Ui, Vec2, Window};
 use eframe::epi::{App, Frame, Storage};
 use eframe::NativeOptions;
 
 use crate::ui::screen::Screen;
 use crate::ui::setup::SetupScreen;
+use crate::work::WorkThread;
 
 const APP_NAME: &str = "Hammeregg Desktop";
 const WINDOW_PADDING: Vec2 = Vec2::splat(16.0);
@@ -23,9 +24,9 @@ pub struct UI {
 
 impl UI {
     /// Creates a UI with the given screen.
-    pub fn new<S: Screen + 'static>(screen: S) -> Self {
+    pub fn new(screen: Box<dyn Screen>) -> Self {
         Self {
-            current_screen: Some(Box::new(screen)),
+            current_screen: Some(screen),
             packed: false,
             clear_color: None,
         }
@@ -87,5 +88,22 @@ pub fn show_ui() {
         initial_window_size: Some(Vec2::default()),
         ..NativeOptions::default()
     };
-    eframe::run_native(Box::new(UI::new(SetupScreen::new())), options);
+    let screen: Box<dyn Screen> = match WorkThread::new() {
+        Ok(work_thread) => Box::new(SetupScreen::new(work_thread)),
+        Err(_) => {
+            struct WorkThreadInitFailedScreen;
+            impl Screen for WorkThreadInitFailedScreen {
+                fn update(self: Box<Self>, ui: &mut Ui) -> (Box<dyn Screen>, bool) {
+                    ui.colored_label(ERROR_COLOR, "Fatal error: failed to initialize background work thread.");
+                    ui.add_space(16.0);
+                    if ui.button("Exit").clicked() {
+                        std::process::exit(-1);
+                    }
+                    (self, false)
+                }
+            }
+            Box::new(WorkThreadInitFailedScreen)
+        }
+    };
+    eframe::run_native(Box::new(UI::new(screen)), options);
 }
