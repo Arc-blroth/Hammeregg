@@ -1,3 +1,6 @@
+// Maintainers: keep this file synchronized with
+// egg/src/hammeregg_key.ts
+
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use rsa::RsaPrivateKey;

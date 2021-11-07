@@ -25,12 +25,18 @@
             <h1 class="text-primary text-xl mb-10">Hammeregg Web</h1>
             <form id="setup">
                 <div class="mb-1.5">
-                    <label for="signalling_server_ip">Desktop Name:</label>
+                    <label for="desktop_name">Desktop Name:</label>
                     <input id="desktop_name"></input>
                 </div>
                 <div class="mb-1.5">
                     <label for="signalling_server_ip">Signalling Server:</label>
                     <input id="signalling_server_ip"></input>
+                </div>
+                <div class="mb-1.5">
+                    <label for="egg_password">Password:</label>
+                    <input type="file" id="egg_password" class="hidden"></input>
+                    <button class="mr-1.5" for="egg_password" id="fake_egg_password">Select File</button>
+                    <label id="egg-password-display">No file selected</label>
                 </div>
                 <label class="mb-6 block text-danger" id="setup_err">&nbsp;</label>
                 <button id="start_connection">Start!</button>
