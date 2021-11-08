@@ -52,13 +52,34 @@ impl Error for ErrorMsg {}
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum HandshakePacket {
-    HomeInit { home_name: String },
-    HomeInitResponse { response: Result<(), ErrorMsg> },
-    RemoteInit { home_name: String },
-    RemoteInitResponse { response: Result<(), ErrorMsg> },
-    RemoteOffer { peer: u32, payload: Vec<u8> },
-    HomeAnswerSuccess { peer: u32, payload: Vec<u8> },
-    HomeAnswerFailure { peer: u32, error: String },
+    HomeInit {
+        home_name: String,
+    },
+    HomeInitResponse {
+        response: Result<(), ErrorMsg>,
+    },
+    RemoteInit {
+        home_name: String,
+    },
+    RemoteInitResponse {
+        response: Result<(), ErrorMsg>,
+    },
+    RemoteOffer {
+        peer: u32,
+        key: Vec<u8>,
+        iv: Vec<u8>,
+        payload: Vec<u8>,
+    },
+    HomeAnswerSuccess {
+        peer: u32,
+        key: Vec<u8>,
+        iv: Vec<u8>,
+        payload: Vec<u8>,
+    },
+    HomeAnswerFailure {
+        peer: u32,
+        error: String,
+    },
 }
 
 /// Initial handshake packet, sent by both the home

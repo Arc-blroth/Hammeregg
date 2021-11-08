@@ -1,13 +1,8 @@
 import * as BSON from "bson"
-import { ASN1 } from "jsencrypt/lib/lib/asn1js/asn1"
-import { Base64 as ASNBase64 } from "jsencrypt/lib/lib/asn1js/base64"
-import { parseBigInt } from "jsencrypt/lib/lib/jsbn/jsbn"
-import { JSEncrypt } from "jsencrypt"
-import { JSEncryptRSAKey } from "jsencrypt/lib/JSEncryptRSAKey"
 import { isIP } from "range_check"
 import { StateMachine, StateMachineInstance } from "ts-state-machines"
 import * as core from "./hammeregg_core"
-import { RemotePassword } from "./hammeregg_key"
+import * as key from "./hammeregg_key"
 
 /** jquery is dead, long live jquery! */
 let $ = (id: string) => document.getElementById(id)
@@ -60,20 +55,20 @@ $("setup").onsubmit = async e => {
         errors.push("signalling server is not a valid ip:port")
     }
 
-    let encryptor: JSEncrypt
-    let decryptor: JSEncrypt
+    let homePublicKey: CryptoKey
+    let remotePrivateKey: CryptoKey
     let eggPasswordFiles = ($("egg_password") as HTMLInputElement).files
     if(eggPasswordFiles.length > 0) {
         try {
-            let password = BSON.deserialize(await eggPasswordFiles[0].arrayBuffer()) as RemotePassword
-            encryptor = new JSEncrypt()
-            let parsedPublicKey = parsePublicKey(password.home_public_key)
-            ;(encryptor as any).key = parsedPublicKey
-
-            decryptor = new JSEncrypt()
-            decryptor.setPrivateKey(password.remote_private_key)
+            let password = BSON.deserialize(await eggPasswordFiles[0].arrayBuffer()) as key.RemotePassword
+            homePublicKey = await key.importRSAPublicKey(password.home_public_key)
+            remotePrivateKey = await key.importRSAPrivateKey(password.remote_private_key)
         } catch(e) {
-            console.error(e)
+            if(e instanceof DOMException) {
+                console.error(`${e.name}: ${e.message}`)
+            } else {
+                console.error(e)
+            }
             errors.push("couldn't read password")
         }
     } else {
@@ -90,7 +85,7 @@ $("setup").onsubmit = async e => {
 
     // Init signalling
     try {
-        initSignallingConnection(desktopName, signallingAddr, encryptor, decryptor)
+        initSignallingConnection(desktopName, signallingAddr, homePublicKey, remotePrivateKey)
     } catch {
         ($("setup") as HTMLFormElement).enabled = true
     }
@@ -115,30 +110,6 @@ function tryParseSignallingServerAddr(ipAndPort: string): string {
 }
 
 /**
- * Parses an ASN.1 DER-encoded key with the structure
- * ```
- * RSAPublicKey ::= SEQUENCE {
- *     modulus           INTEGER,  -- n
- *     publicExponent    INTEGER   -- e
- * }
- * ```
- */
-function parsePublicKey(pem: string) {
-    let asn1 = ASN1.decode(ASNBase64.unarmor(pem))
-    let modulus = asn1.sub[0].getHexStringValue()
-    let n = parseBigInt(modulus, 16)
-    let publicExponent = asn1.sub[1].getHexStringValue()
-    let e = parseInt(publicExponent, 16)
-
-    // we do a bit of privacy breaking
-    let rsaKey = new JSEncryptRSAKey()
-    ;(rsaKey as any).n = n
-    ;(rsaKey as any).e = e
-
-    return rsaKey
-}
-
-/**
  * Sets the setup dialog's error text to the given error message,
  * or clears the error message if no argument is given.
  */
@@ -149,15 +120,16 @@ function setError(error?: string) {
 function initSignallingConnection(
     desktopName: string,
     signallingAddr: string,
-    encryptor: JSEncrypt,
-    decryptor: JSEncrypt,
+    homePublicKey: CryptoKey,
+    remotePrivateKey: CryptoKey,
 ) {
     const SignallingStateMachine = StateMachine({
         initialState: "init",
         states: {
             init: { next: "waitRemoteInitResponse" },
-            waitRemoteInitResponse: { next: "waitRemoteOfferResponse" },
-            waitRemoteOfferResponse: { next: "waitRemoteOfferResponse" },
+            waitRemoteInitResponse: { next: "waitHomeAnswerResponse" },
+            waitHomeAnswerResponse: { next: "done" },
+            done: { next: "done" },
         },
     } as const)
 
@@ -182,6 +154,7 @@ function initSignallingConnection(
     })
     peerConnection.createOffer().then(d => peerConnection.setLocalDescription(d))
 
+    // init signalling connection
     let signallingConnection = new WebSocket("wss://" + signallingAddr)
     signallingConnection.binaryType = "arraybuffer"
     signallingConnection.onopen = e => {
@@ -209,17 +182,66 @@ function initSignallingConnection(
                     if(initResponse.response.hasOwnProperty("Err")) {
                         throw (initResponse.response as core.ResultErr).Err
                     } else {
-                        let localSessionDescription = await allCandidatesGathered
-                        let encryptedLocalSD = encryptor.encrypt(localSessionDescription.sdp)
-                        if(encryptedLocalSD == false) throw "couldn't encrypt session description"
-                        signallingConnection.send(BSON.serialize(<core.RemoteOfferHandshakePacket> {
+                        // wait for our session description
+                        let localSessionDescription = JSON.stringify(await allCandidatesGathered)
+
+                        // generate a random aes key and encrypt our payload
+                        let aesKey = await key.generateAESKey()
+                        let aesIV = key.generateIV()
+                        let encryptedLocalSD = await crypto.subtle.encrypt(
+                            { name: "AES-GCM", iv: aesIV },
+                            aesKey,
+                            key.string2Buffer(localSessionDescription)
+                        ) as ArrayBuffer
+                        let exportedKey = await crypto.subtle.wrapKey("raw", aesKey, homePublicKey, key.HAMMEREGG_RSA_PARAMS)
+                        
+                        let out: core.RemoteOfferHandshakePacket = {
                             type: core.HandshakePacketType.REMOTE_OFFER,
                             peer: 0, // this is filled in by Rooster
-                            payload: Array.from(atob(encryptedLocalSD), x => x.charCodeAt(0)),
-                        }))
+                            key: key.buffer2Array(exportedKey),
+                            iv: key.buffer2Array(aesIV),
+                            payload: key.buffer2Array(encryptedLocalSD),
+                        };
+                        console.log("Sending remote offer ", out)
+                        signallingConnection.send(BSON.serialize(out))
                         state = state.next()
                     }
                     break
+                }
+                case core.HandshakePacketType.HOME_ANSWER_SUCCESS: {
+                    assertState("waitHomeAnswerResponse")
+                    let answer = packet as core.HomeAnswerSuccessHandshakePacket
+
+                    // decrypt payload
+                    let aesKey = await crypto.subtle.unwrapKey(
+                        "raw",
+                        key.array2Buffer(answer.key),
+                        remotePrivateKey,
+                        key.HAMMEREGG_RSA_PARAMS,
+                        key.HAMMEREGG_AES_PARAMS,
+                        false,
+                        ["decrypt"]
+                    )
+                    let aesIV = key.array2Buffer(answer.iv)
+                    let decryptedAnswer = await crypto.subtle.decrypt(
+                        { name: "AES-GCM", iv: aesIV },
+                        aesKey,
+                        key.array2Buffer(answer.payload)
+                    ) as ArrayBuffer
+
+                    let remoteSessionDescription =JSON.parse(key.buffer2String(decryptedAnswer))
+                    console.log("Received remote description ", remoteSessionDescription)
+
+                    // set remote description!
+                    peerConnection.setRemoteDescription(new RTCSessionDescription(remoteSessionDescription))
+                    state = state.next()
+                    signallingConnection.close()
+                    break
+                }
+                case core.HandshakePacketType.HOME_ANSWER_FAILURE: {
+                    assertState("waitHomeAnswerResponse")
+                    let answer = packet as core.HomeAnswerFailureHandshakePacket
+                    throw answer.error
                 }
             }
         } catch(e) {

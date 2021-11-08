@@ -63,12 +63,16 @@ export interface RemoteInitResponseHandshakePacket {
 export interface RemoteOfferHandshakePacket {
     type: HandshakePacketType.REMOTE_OFFER;
     peer: number;
+    key: Array<number>;
+    iv: Array<number>;
     payload: Array<number>;
 }
 
 export interface HomeAnswerSuccessHandshakePacket {
     type: HandshakePacketType.HOME_ANSWER_SUCCESS;
     peer: number;
+    key: Array<number>;
+    iv: Array<number>;
     payload: Array<number>;
 }
 

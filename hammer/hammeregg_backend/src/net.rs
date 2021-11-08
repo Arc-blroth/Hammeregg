@@ -7,23 +7,26 @@ use std::os::raw::c_char;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use aes_gcm::aead::Aead;
+use aes_gcm::{Aes256Gcm, Key as AesGcmKey, NewAead, Nonce};
 use anyhow::{anyhow, Context, Result};
 use atomic_refcell::{AtomicRefCell, AtomicRefMut};
 use futures::channel::oneshot;
 use futures::future::BoxFuture;
 use futures::{future, FutureExt, SinkExt, StreamExt};
 use hammeregg_core::{deserialize_packet, serialize_packet, HandshakeInitPacket, HandshakePacket, VERSION_1_0};
-use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::rand_core::{RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
-use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
+use rsa::{PublicKey, RsaPrivateKey, RsaPublicKey};
 use tokio::net::TcpStream;
 use tokio_rustls::rustls::{Certificate, ClientConfig, OwnedTrustAnchor, RootCertStore};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{client_async_tls_with_config, Connector, MaybeTlsStream, WebSocketStream};
 use url::Url;
+use zeroize::Zeroizing;
 
-use crate::pion;
 use crate::pion::PeerConnection;
+use crate::{key, pion};
 
 pub type WSS = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -114,11 +117,12 @@ pub async fn handle_signalling_requests(
     let (mut send, mut recv) = socket.split();
     let connection_and_stop_future: AtomicRefCell<Option<(PeerConnection, Arc<AtomicBool>)>> = AtomicRefCell::new(None);
 
+    println!("Handling signalling requests!");
     // purely functional version of this loop blocked on https://github.com/rust-lang/rust/issues/90656
     while let Some(packet) = recv.next().await {
         let res: Result<BoxFuture<Result<Message>>> = try {
             match deserialize_packet::<HandshakePacket>(&packet.context("Signalling failed: could not read packet")?)? {
-                HandshakePacket::RemoteOffer { peer, payload } => {
+                HandshakePacket::RemoteOffer { peer, key, iv, payload } => {
                     // Do we already have a connection?
                     let can_accept = match connection_and_stop_future.borrow().deref() {
                         None => true,
@@ -136,6 +140,8 @@ pub async fn handle_signalling_requests(
                         handle_remote_offer(
                             connection_and_stop_future.borrow_mut(),
                             peer,
+                            key,
+                            iv,
                             payload,
                             &home_private_key,
                             &remote_public_key,
@@ -156,7 +162,11 @@ pub async fn handle_signalling_requests(
                     }
                 })
                 .await
-                .context("Signalling handler loop crashed")?,
+                .map_err(|x| {
+                    let out = anyhow!(x);
+                    eprintln!("Signalling handler loop crashed: {:?}", out);
+                    out
+                })?,
             Err(err) => {
                 eprintln!("{:?}", err);
             }
@@ -168,6 +178,8 @@ pub async fn handle_signalling_requests(
 async fn handle_remote_offer<'a>(
     mut connection_and_stop_future: AtomicRefMut<'a, Option<(PeerConnection, Arc<AtomicBool>)>>,
     peer: u32,
+    key: Vec<u8>,
+    iv: Vec<u8>,
     payload: Vec<u8>,
     home_private_key: &RsaPrivateKey,
     remote_public_key: &RsaPublicKey,
@@ -179,10 +191,26 @@ async fn handle_remote_offer<'a>(
     );
 
     let result = try {
+        // Quick sanity check: does the init vector make sense?
+        if iv.len() != key::AES_IV_SIZE {
+            Err(anyhow!("Invalid AES init vector length {}", iv.len()))?;
+        }
+
+        // Deserialize key
+        let decrypted_key = home_private_key
+            .decrypt(key::padding_scheme(), key.as_slice())
+            .context("Signalling failed: couldn't decrypt remote key")?;
+
+        // Quick sanity check: does the key length make sense?
+        if decrypted_key.len() != key::AES_KEY_SIZE {
+            Err(anyhow!("Invalid AES key length {}", decrypted_key.len()))?;
+        }
+
         // Deserialize payload
-        let decrypted_payload = home_private_key
-            .decrypt(PaddingScheme::PKCS1v15Encrypt, payload.as_slice())
-            .context("Signalling failed: couldn't decrypt remote payload")?;
+        let aes_cipher = Aes256Gcm::new(AesGcmKey::from_slice(decrypted_key.as_slice()));
+        let decrypted_payload = aes_cipher
+            .decrypt(iv.as_slice().into(), payload.as_slice())
+            .map_err(|_| anyhow!("Signalling failed: couldn't decrypt remote payload"))?;
 
         // Start the server
         let (connection, answer, stop_notifier) = start_pion_server(
@@ -192,16 +220,32 @@ async fn handle_remote_offer<'a>(
 
         // Encrypt answer payload
         let mut rng = ChaCha20Rng::from_entropy();
-        let encrypted_answer = remote_public_key
-            .encrypt(
-                &mut rng,
-                PaddingScheme::PKCS1v15Encrypt,
-                answer.into_bytes().as_mut_slice(),
-            )
-            .context("Signalling failed: answer couldn't be encrypted")?;
+
+        let mut out_key_data = Zeroizing::new(Vec::with_capacity(key::AES_KEY_SIZE));
+        out_key_data.resize(key::AES_KEY_SIZE, 0);
+        rng.try_fill_bytes(out_key_data.as_mut_slice())
+            .context("Signalling failed: couldn't generate AES key")?;
+        let out_key = AesGcmKey::from_slice(out_key_data.as_slice());
+
+        let mut out_iv_data = Vec::with_capacity(key::AES_IV_SIZE);
+        out_iv_data.resize(key::AES_IV_SIZE, 0);
+        rng.try_fill_bytes(out_iv_data.as_mut_slice())
+            .context("Signalling failed: couldn't generate AES init vector")?;
+        let out_nonce = Nonce::from_slice(out_iv_data.as_slice());
+
+        let out_aes_cipher = Aes256Gcm::new(out_key);
+
+        let encrypted_key = remote_public_key
+            .encrypt(&mut rng, key::padding_scheme(), &**out_key_data)
+            .context("Signalling failed: key couldn't be encrypted")?;
+        let encrypted_answer = out_aes_cipher
+            .encrypt(out_nonce, answer.into_bytes().as_slice())
+            .map_err(|_| anyhow!("Signalling failed: answer couldn't be encrypted"))?;
 
         let message = serialize_packet(&HandshakePacket::HomeAnswerSuccess {
             peer,
+            key: encrypted_key,
+            iv: out_iv_data,
             payload: encrypted_answer,
         })?;
 

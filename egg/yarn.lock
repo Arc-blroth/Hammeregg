@@ -3294,8 +3294,7 @@ fsevents@~2.3.2:
     ansi-html: "patch:ansi-html@0.0.7#.yarn/patches/ansi-html-community.patch"
     autoprefixer: ^10.3.7
     bson: ^4.5.3
-    jsencrypt: ^3.2.1
-    parcel: ^2.0.0-rc.0
+    parcel: ^2.0.0
     postcss: ^8.3.9
     postcss-import: ^14.0.2
     range_check: ^2.0.4
@@ -4148,13 +4147,6 @@ fsevents@~2.3.2:
   languageName: node
   linkType: hard
 
-"jsencrypt@npm:^3.2.1":
-  version: 3.2.1
-  resolution: "jsencrypt@npm:3.2.1"
-  checksum: daf813bac2f54b71afd4a3283e3725a759ef32ab1c4d5f8871f08c19975e943d2ff71e2adb89379192a990d985ccd7dc58f409ac3784d945b8b2522aeb193dcb
-  languageName: node
-  linkType: hard
-
 "jsesc@npm:^2.5.1":
   version: 2.5.2
   resolution: "jsesc@npm:2.5.2"
@@ -4990,7 +4982,7 @@ fsevents@~2.3.2:
   languageName: node
   linkType: hard
 
-"parcel@npm:^2.0.0-rc.0":
+"parcel@npm:^2.0.0":
   version: 2.0.0
   resolution: "parcel@npm:2.0.0"
   dependencies:

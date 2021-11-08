@@ -3,7 +3,7 @@ use std::rc::Rc;
 use anyhow::{Context, Result};
 use eframe::egui::Ui;
 use rfd::FileDialog;
-use rsa::pkcs1::{ToRsaPrivateKey, ToRsaPublicKey};
+use rsa::pkcs8::{ToPrivateKey, ToPublicKey};
 use rsa::RsaPrivateKey;
 
 use crate::key::RemotePassword;
@@ -31,15 +31,20 @@ impl RunningScreen {
         // start handling signalling requests
         let home_public_key = home_private_key.to_public_key();
         let remote_public_key = remote_private_key.to_public_key();
-        work_thread.handle().spawn(net::handle_signalling_requests(
+        let join_handle = work_thread.handle().spawn(net::handle_signalling_requests(
             wss,
             home_private_key,
             remote_public_key,
         ));
+        work_thread.handle().spawn(async move {
+            if let Err(err) = join_handle.await {
+                eprintln!("Signalling loop panicked: {:?}", err);
+            }
+        });
 
         // generate the remote side of the Hammeregg password
-        let home_public_pem = ToRsaPublicKey::to_pkcs1_pem(&home_public_key).unwrap();
-        let remote_private_pem = ToRsaPrivateKey::to_pkcs1_pem(&remote_private_key).unwrap();
+        let home_public_pem = ToPublicKey::to_public_key_pem(&home_public_key).unwrap();
+        let remote_private_pem = ToPrivateKey::to_pkcs8_pem(&remote_private_key).unwrap();
         // SAFETY: we make a copy of the private password
         // that is inserted into another Zeroizing struct.
         // Both the original private password and the new

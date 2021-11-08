@@ -302,14 +302,19 @@ async fn handle_remote_init(desktops: Desktops, mut socket: WSS, home_name: Stri
             .try_for_each(|packet| {
                 match try {
                     match deserialize_packet::<HandshakePacket>(&packet)? {
-                        HandshakePacket::RemoteOffer { payload, .. } => {
+                        HandshakePacket::RemoteOffer { key, iv, payload, .. } => {
                             let mut desktop_map = desktops.lock();
                             let desktop = desktop_map
                                 .get_mut(&home_name)
                                 .context("Desktop does not exist any longer")?;
 
                             // Since remote doesn't know their peer id we need to fill it in
-                            let filled_packet = serialize_packet(&HandshakePacket::RemoteOffer { peer: id, payload })?;
+                            let filled_packet = serialize_packet(&HandshakePacket::RemoteOffer {
+                                peer: id,
+                                key,
+                                iv,
+                                payload,
+                            })?;
 
                             desktop
                                 .desktop_tx
