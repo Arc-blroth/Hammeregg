@@ -20,8 +20,7 @@
         <style> @import "./index.css"; </style>
     </head>
     <body class="flex items-center justify-center h-screen bg-gray-700">
-        <div class="absolute w-full h-full opacity-50"></div>
-        <div class="mx-auto h-auto z-50 p-5 border w-1/2 shadow-lg rounded-md bg-gray-500">
+        <div class="mx-auto h-auto z-50 p-5 border w-1/2 shadow-lg rounded-md bg-gray-500" id="setup-wrapper">
             <h1 class="text-primary text-xl mb-10">Hammeregg Web</h1>
             <form id="setup">
                 <div class="mb-1.5">
@@ -41,6 +40,9 @@
                 <label class="mb-6 block text-danger" id="setup_err">&nbsp;</label>
                 <button id="start_connection">Start!</button>
             </form>
+        </div>
+        <div class="absolute w-full h-full hidden" id="stream-wrapper">
+            <video class="w-full h-full" id="stream-video"></video>
         </div>
         <!-- force parcel to inline scripts -->
         <script type="module"> import './index.ts'; </script>

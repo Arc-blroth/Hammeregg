@@ -360,9 +360,10 @@ async fn start_pion_server(offer: String) -> Result<(PeerConnection, String, Arc
         };
         answer_tx.send(Ok(answer.to_string())).unwrap();
 
-        // wait forever
-        loop {
-            std::thread::park();
+        // Start streaming!
+        extern "C" fn temp_callback() {}
+        unsafe {
+            pion::hammer_rtp2rtc_start(connection, 5000, temp_callback);
         }
     });
     let connection = connection_rx.await??;

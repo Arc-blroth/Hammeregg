@@ -5,12 +5,16 @@ package main
 // #include <bridge.h>
 import "C"
 import (
-    "encoding/json"
-    "fmt"
-    "runtime/cgo"
-    "unsafe"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"runtime/cgo"
+	"unsafe"
 
-    "github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v3"
 )
 
 // Since rtp2rtc is always built as a
@@ -20,16 +24,30 @@ func main() {}
 // A null `uintptr_t`, for use with FFI. 
 const Nullptr = C.uintptr_t(0)
 
+// Buffer size for all IO connections.
+const NetBufferSize = 1024;
+
+func LogInfo(format string, args ...interface{}) {
+    fmt.Printf("[Hammer/Pion] %s\n", fmt.Sprintf(format, args...))
+}
+
+// Why does Go not have a fmt.Eprintf
+func LogError(format string, args ...interface{}) {
+    fmt.Fprintf(os.Stderr, "[Hammer/Pion] %s\n", fmt.Sprintf(format, args...))
+}
+
 type PeerConnection struct {
     Connection *webrtc.PeerConnection
+    VideoTrack *webrtc.TrackLocalStaticRTP
     VideoSender *webrtc.RTPSender
+    AudioTrack *webrtc.TrackLocalStaticRTP
     AudioSender *webrtc.RTPSender
     InputChannel *webrtc.DataChannel
 }
 
 //export hammer_rtp2rtc_init
 func hammer_rtp2rtc_init() C.uintptr_t {
-    fmt.Println("[Hammer/Pion] init()")
+    LogInfo("init()")
 
     connection, err := webrtc.NewPeerConnection(webrtc.Configuration{
         ICEServers: []webrtc.ICEServer{
@@ -71,7 +89,9 @@ func hammer_rtp2rtc_init() C.uintptr_t {
 
     peerConnection := PeerConnection {
         Connection: connection,
+        VideoTrack: videoTrack,
         VideoSender: videoSender,
+        AudioTrack: audioTrack,
         AudioSender: audioSender,
         InputChannel: inputChannel,
     }
@@ -129,7 +149,75 @@ func hammer_rtp2rtc_signal_offer(connection C.uintptr_t, descPtr C.uintptr_t) *C
 
 //export hammer_rtp2rtc_start
 func hammer_rtp2rtc_start(connection C.uintptr_t, port C.uint16_t, callback C.hammer_rtp2rtc_input_callback) {
-    C.HammerRTP2RTCInputCallbackBridge(callback)
+    LogInfo("start()")
+    peerConnection := cgo.Handle(connection).Value().(PeerConnection)
+
+    defer func() {
+        // Make sure the handle is cleaned up no matter what
+        cgo.Handle(connection).Delete()
+        // Make sure to close the peer connection before returning
+		if err := peerConnection.Connection.Close(); err != nil {
+            LogError("Couldn't close peer connection: %s", err)
+			panic(err)
+		}
+	}()
+
+    // Read video and audio packets from remote for ACKs
+    go func() {
+		buffer := make([]byte, NetBufferSize)
+		for {
+			if _, _, err := peerConnection.AudioSender.Read(buffer); err != nil {
+                LogError("Couldn't read from audio sender: %s", err)
+				return
+			}
+		}
+	}()
+    go func() {
+		buffer := make([]byte, NetBufferSize)
+		for {
+			if _, _, err := peerConnection.VideoSender.Read(buffer); err != nil {
+                LogError("Couldn't read from video sender: %s", err)
+				return
+			}
+		}
+	}()
+
+    // Open UDP listeners on the given ports
+    videoListener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: int(port)})
+	if err != nil {
+        LogError("Binding to port %d failed!: %s", int(port), err)
+		panic(err)
+	}
+    
+	defer func() {
+        // Make sure to close the UDP listeners before returning
+		if err = videoListener.Close(); err != nil {
+            LogError("Couldn't close video listener: %s", err)
+			panic(err)
+		}
+	}()
+    
+    // go func() {
+		buffer := make([]byte, NetBufferSize * 2)
+        // Read packets from local ports and forward them to the remote
+		for {
+			n, _, err := videoListener.ReadFrom(buffer)
+            if err != nil {
+                LogError("Couldn't read from port %d: %s", int(port), err)
+                panic(err)
+            }
+
+            if _, err = peerConnection.VideoTrack.Write(buffer[:n]); err != nil {
+                if errors.Is(err, io.ErrClosedPipe) {
+                    // graceful shutdown
+                    return
+                } else {
+                    LogError("Couldn't write to video track: %s", err)
+                    panic(err)
+                }
+            }
+		}
+	// }()
 }
 
 //export hammer_rtp2rtc_stop

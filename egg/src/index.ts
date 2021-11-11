@@ -142,6 +142,14 @@ function initSignallingConnection(
     let peerConnection = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun3.l.google.com:19302' }]
     })
+
+    peerConnection.ontrack = e => {
+        console.log(e)
+        if(e.track.kind == "video") {
+            ($("stream-video") as HTMLVideoElement).srcObject = e.streams[0]
+        }
+    }
+
     peerConnection.addTransceiver("audio", {"direction": "recvonly"})
     peerConnection.addTransceiver("video", {"direction": "recvonly"})
     peerConnection.createDataChannel("hammeregg-input", {"negotiated": false})
@@ -236,6 +244,9 @@ function initSignallingConnection(
                     peerConnection.setRemoteDescription(new RTCSessionDescription(remoteSessionDescription))
                     state = state.next()
                     signallingConnection.close()
+
+                    // show the actual desktop
+                    showStream()
                     break
                 }
                 case core.HandshakePacketType.HOME_ANSWER_FAILURE: {
@@ -251,4 +262,13 @@ function initSignallingConnection(
             ;($("setup") as HTMLFormElement).enabled = true
         }
     }
+}
+
+function showStream() {
+    $("setup-wrapper").classList.add("hidden")
+    $("stream-wrapper").classList.remove("hidden")
+    
+    let streamVideo = $("stream-video") as HTMLVideoElement
+    streamVideo.autoplay = true
+    streamVideo.controls = false
 }
