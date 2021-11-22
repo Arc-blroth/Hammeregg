@@ -123,31 +123,26 @@ pub async fn handle_signalling_requests(
         let res: Result<BoxFuture<Result<Message>>> = try {
             match deserialize_packet::<HandshakePacket>(&packet.context("Signalling failed: could not read packet")?)? {
                 HandshakePacket::RemoteOffer { peer, key, iv, payload } => {
-                    // Do we already have a connection?
-                    let can_accept = match connection_and_stop_future.borrow().deref() {
-                        None => true,
-                        Some((_, stop_notifier)) => stop_notifier.load(Ordering::SeqCst),
+                    // If we already have a connection then stop the first connection
+                    // before starting a new one.
+                    if let Some((connection, stop_notifier)) = connection_and_stop_future.borrow().deref() {
+                        // Make sure we haven't already stopped yet (ie in the panic handler)
+                        if !connection.is_null() && !stop_notifier.load(Ordering::SeqCst) {
+                            unsafe {
+                                pion::hammer_rtp2rtc_stop(*connection);
+                            }
+                        }
                     };
-                    if !can_accept {
-                        // If we're already connected to another client,
-                        // return an error to the remote.
-                        future::ready(serialize_packet(&HandshakePacket::HomeAnswerFailure {
-                            peer,
-                            error: "Another client is already connected".to_string(),
-                        }))
-                        .boxed()
-                    } else {
-                        handle_remote_offer(
-                            connection_and_stop_future.borrow_mut(),
-                            peer,
-                            key,
-                            iv,
-                            payload,
-                            &home_private_key,
-                            &remote_public_key,
-                        )
-                        .boxed()
-                    }
+                    handle_remote_offer(
+                        connection_and_stop_future.borrow_mut(),
+                        peer,
+                        key,
+                        iv,
+                        payload,
+                        &home_private_key,
+                        &remote_public_key,
+                    )
+                    .boxed()
                 }
                 _ => Err(anyhow!("Signalling failed: did not get a RemoteOffer packet"))?,
             }
@@ -285,11 +280,12 @@ async fn start_pion_server(offer: String) -> Result<(PeerConnection, String, Arc
 
         impl Drop for PionServer {
             fn drop(&mut self) {
+                self.stop_notifier.store(true, Ordering::SeqCst);
                 unsafe {
                     if !self.connection.is_null() {
                         pion::hammer_rtp2rtc_stop(self.connection);
+                        pion::hammer_rtp2rtc_free(self.connection);
                     }
-                    self.stop_notifier.store(true, Ordering::SeqCst)
                 }
             }
         }

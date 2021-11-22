@@ -69,9 +69,14 @@ extern "C" {
     pub fn hammer_rtp2rtc_start(connection: PeerConnection, port: u16, input_callback: extern "C" fn());
 
     /// Asynchronously requests the RTP -> WebRTC connection to stop.
+    /// If this is called more than once, any subsequent calls will have
+    /// no effect.
+    pub fn hammer_rtp2rtc_stop(connection: PeerConnection);
+
+    /// Deletes the RTP -> WebRTC connection.
     /// After calling this, the PeerConnection pointer becomes invalid
     /// and should not be used.
-    pub fn hammer_rtp2rtc_stop(connection: PeerConnection);
+    pub fn hammer_rtp2rtc_free(connection: PeerConnection);
 
     /// Frees a CString allocated by Go code.
     pub fn hammer_free_cstring(cstring: *mut c_char);

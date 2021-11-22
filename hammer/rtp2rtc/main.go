@@ -43,6 +43,7 @@ type PeerConnection struct {
     AudioTrack *webrtc.TrackLocalStaticRTP
     AudioSender *webrtc.RTPSender
     InputChannel *webrtc.DataChannel
+    StopNotifier *chan struct{}
 }
 
 //export hammer_rtp2rtc_init
@@ -87,6 +88,8 @@ func hammer_rtp2rtc_init() C.uintptr_t {
         return Nullptr
     }
 
+    stopNotifier := make(chan struct{})
+
     peerConnection := PeerConnection {
         Connection: connection,
         VideoTrack: videoTrack,
@@ -94,6 +97,7 @@ func hammer_rtp2rtc_init() C.uintptr_t {
         AudioTrack: audioTrack,
         AudioSender: audioSender,
         InputChannel: inputChannel,
+        StopNotifier: &stopNotifier,
     }
 
     return C.uintptr_t(cgo.NewHandle(peerConnection))
@@ -153,8 +157,6 @@ func hammer_rtp2rtc_start(connection C.uintptr_t, port C.uint16_t, callback C.ha
     peerConnection := cgo.Handle(connection).Value().(PeerConnection)
 
     defer func() {
-        // Make sure the handle is cleaned up no matter what
-        cgo.Handle(connection).Delete()
         // Make sure to close the peer connection before returning
 		if err := peerConnection.Connection.Close(); err != nil {
             LogError("Couldn't close peer connection: %s", err)
@@ -167,8 +169,10 @@ func hammer_rtp2rtc_start(connection C.uintptr_t, port C.uint16_t, callback C.ha
 		buffer := make([]byte, NetBufferSize)
 		for {
 			if _, _, err := peerConnection.AudioSender.Read(buffer); err != nil {
-                LogError("Couldn't read from audio sender: %s", err)
-				return
+                if(!errors.Is(err, io.ErrClosedPipe)) {
+                    LogError("Couldn't read from audio sender: %s", err)
+                }
+                return
 			}
 		}
 	}()
@@ -176,8 +180,10 @@ func hammer_rtp2rtc_start(connection C.uintptr_t, port C.uint16_t, callback C.ha
 		buffer := make([]byte, NetBufferSize)
 		for {
 			if _, _, err := peerConnection.VideoSender.Read(buffer); err != nil {
-                LogError("Couldn't read from video sender: %s", err)
-				return
+                if(!errors.Is(err, io.ErrClosedPipe)) {
+                    LogError("Couldn't read from video sender: %s", err)
+                }
+                return
 			}
 		}
 	}()
@@ -197,31 +203,40 @@ func hammer_rtp2rtc_start(connection C.uintptr_t, port C.uint16_t, callback C.ha
 		}
 	}()
     
-    // go func() {
+    go func() {
 		buffer := make([]byte, NetBufferSize * 2)
         // Read packets from local ports and forward them to the remote
 		for {
 			n, _, err := videoListener.ReadFrom(buffer)
             if err != nil {
-                LogError("Couldn't read from port %d: %s", int(port), err)
-                panic(err)
-            }
-
-            if _, err = peerConnection.VideoTrack.Write(buffer[:n]); err != nil {
-                if errors.Is(err, io.ErrClosedPipe) {
+                if(errors.Is(err, net.ErrClosed)) {
                     // graceful shutdown
                     return
                 } else {
-                    LogError("Couldn't write to video track: %s", err)
+                    LogError("Couldn't read from port %d: %s", int(port), err)
                     panic(err)
                 }
             }
+
+            if _, err = peerConnection.VideoTrack.Write(buffer[:n]); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+                LogError("Couldn't write to video track: %s", err)
+                panic(err)
+            }
 		}
-	// }()
+	}()
+
+    // Wait for the stop notifier to be called
+    <-*peerConnection.StopNotifier
 }
 
 //export hammer_rtp2rtc_stop
 func hammer_rtp2rtc_stop(connection C.uintptr_t) {
+    peerConnection := cgo.Handle(connection).Value().(PeerConnection)
+    *peerConnection.StopNotifier <- struct{}{}
+}
+
+//export hammer_rtp2rtc_free
+func hammer_rtp2rtc_free(connection C.uintptr_t) {
     cgo.Handle(connection).Delete()
 }
 
