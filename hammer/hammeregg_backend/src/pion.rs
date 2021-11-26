@@ -1,7 +1,7 @@
 //! FFI glue to work with Pion.
 
 use std::fmt::{Debug, Formatter};
-use std::os::raw::{c_char, c_int};
+use std::os::raw::{c_char, c_int, c_void};
 
 macro_rules! define_handle_structs {
     ($($(#[$meta:ident $($meta_arg:tt)*])* pub struct $name:ident);*$(;)?) => {
@@ -63,10 +63,18 @@ extern "C" {
     pub fn hammer_rtp2rtc_signal_offer(connection: PeerConnection, desc: SessionDescription) -> *mut c_char;
 
     /// Synchronously starts the RTP -> WebRTC connection. RTP packets
-    /// will be read from the given port and forwarded to the remote peer.
-    /// Key and mouse inputs from the remote peer will be given to the
-    /// provided callback.
-    pub fn hammer_rtp2rtc_start(connection: PeerConnection, port: u16, input_callback: extern "C" fn());
+    /// will be read from local ports and forwarded to the remote peer.
+    ///
+    /// The ports this method binds to are passed to `ports_callback`.
+    ///
+    /// Key and mouse inputs from the remote peer are passed to
+    /// `input_callback`.
+    pub fn hammer_rtp2rtc_start(
+        connection: PeerConnection,
+        ports_callback: extern "C" fn(video: u16, audio: u16, user_data: *mut c_void),
+        ports_callback_user_data: *mut c_void,
+        input_callback: extern "C" fn(),
+    );
 
     /// Asynchronously requests the RTP -> WebRTC connection to stop.
     /// If this is called more than once, any subsequent calls will have
@@ -81,3 +89,33 @@ extern "C" {
     /// Frees a CString allocated by Go code.
     pub fn hammer_free_cstring(cstring: *mut c_char);
 }
+
+/// Uses questionable casting to turn a Rust closure into a callback
+/// function and user data pair that can be called from C. Returns
+/// a tuple containing the original closure (so it doesn't get
+/// prematurely dropped), the c callback, and the user_data to pass
+/// to a C function.
+macro_rules! make_c_closure {
+    ($($closure:tt)*) => {
+        {
+            let mut closure = $($closure)*;
+            crate::pion::__make_c_closure_rest!(closure callback data $($closure)*);
+            (closure, callback, data)
+        }
+    };
+}
+
+#[doc(hidden)]
+macro_rules! __make_c_closure_rest {
+    ($closure:ident $callback:ident $data:ident $(move)? |$($arg_name:ident: $arg_type:ty),*$(,)?| $code:block) => {
+        let $data = &mut (&mut $closure as &mut dyn FnMut($($arg_type),*))
+                        as *mut &mut dyn FnMut($($arg_type),*)
+                        as *mut ::std::os::raw::c_void;
+        extern "C" fn $callback($($arg_name: $arg_type),*, user_data: *mut ::std::os::raw::c_void) {
+            let closure: &mut &mut dyn FnMut($($arg_type),*) = unsafe { std::mem::transmute(user_data) };
+            closure($($arg_name),*);
+        }
+    };
+}
+
+pub(crate) use {__make_c_closure_rest, make_c_closure};

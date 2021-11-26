@@ -11,7 +11,7 @@ use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, Key as AesGcmKey, NewAead, Nonce};
 use anyhow::{anyhow, Context, Result};
 use atomic_refcell::{AtomicRefCell, AtomicRefMut};
-use futures::channel::oneshot;
+use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 use futures::{future, FutureExt, SinkExt, StreamExt};
 use hammeregg_core::{deserialize_packet, serialize_packet, HandshakeInitPacket, HandshakePacket, VERSION_1_0};
@@ -25,7 +25,7 @@ use tokio_tungstenite::{client_async_tls_with_config, Connector, MaybeTlsStream,
 use url::Url;
 use zeroize::Zeroizing;
 
-use crate::pion::PeerConnection;
+use crate::pion::{make_c_closure, PeerConnection};
 use crate::{key, pion};
 
 pub type WSS = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -267,6 +267,7 @@ async fn handle_remote_offer<'a>(
 async fn start_pion_server(offer: String) -> Result<(PeerConnection, String, Arc<AtomicBool>)> {
     let (connection_tx, connection_rx) = oneshot::channel();
     let (answer_tx, answer_rx) = oneshot::channel();
+    let (ports_tx, mut ports_rx) = mpsc::unbounded();
     let stop_notifier = Arc::new(AtomicBool::new(false));
     let stop_notifier_out = stop_notifier.clone();
     std::thread::spawn(move || {
@@ -357,12 +358,23 @@ async fn start_pion_server(offer: String) -> Result<(PeerConnection, String, Arc
         answer_tx.send(Ok(answer.to_string())).unwrap();
 
         // Start streaming!
-        extern "C" fn temp_callback() {}
-        unsafe {
-            pion::hammer_rtp2rtc_start(connection, 5000, temp_callback);
-        }
+        start_pion_server_inner(connection, ports_tx);
     });
     let connection = connection_rx.await??;
     let answer = answer_rx.await??;
+    let ports = ports_rx.next().await;
+    println!("{:?}", ports);
     Ok((connection, answer, stop_notifier_out))
+}
+
+fn start_pion_server_inner(connection: PeerConnection, ports_tx: mpsc::UnboundedSender<(u16, u16)>) {
+    let (_ports_closure, ports_callback, ports_callback_data) = make_c_closure!(move |video: u16, audio: u16| {
+        ports_tx.unbounded_send((video, audio)).unwrap();
+    });
+
+    extern "C" fn temp_callback() {}
+
+    unsafe {
+        pion::hammer_rtp2rtc_start(connection, ports_callback, ports_callback_data, temp_callback);
+    }
 }
