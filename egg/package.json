@@ -18,7 +18,7 @@
     "ansi-regex": "5.0.1",
     "set-value": "4.0.1"
   },
-  "packageManager": "yarn@3.0.2",
+  "packageManager": "yarn@3.1.0",
   "dependencies": {
     "bson": "^4.5.3",
     "range_check": "^2.0.4",
