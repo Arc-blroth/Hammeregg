@@ -4,6 +4,7 @@ use std::io::BufReader;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::os::raw::c_char;
+use std::process::Child;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -26,9 +27,29 @@ use url::Url;
 use zeroize::Zeroizing;
 
 use crate::pion::{make_c_closure, PeerConnection};
-use crate::{key, pion};
+use crate::{key, pion, stream};
 
 pub type WSS = WebSocketStream<MaybeTlsStream<TcpStream>>;
+
+/// Stores the components underlying a single remote connection.
+struct RemoteConnection {
+    connection: PeerConnection,
+    stop_notifier: Arc<AtomicBool>,
+    video_process: Child,
+}
+
+impl Drop for RemoteConnection {
+    fn drop(&mut self) {
+        if !self.connection.is_null() && !self.stop_notifier.load(Ordering::SeqCst) {
+            unsafe {
+                pion::hammer_rtp2rtc_stop(self.connection);
+            }
+            if let Err(err) = self.video_process.kill() {
+                eprintln!("Couldn't kill video process: {}", err);
+            }
+        }
+    }
+}
 
 // Initializes a connection to the signalling server.
 pub async fn init_signalling_connection(
@@ -115,35 +136,23 @@ pub async fn handle_signalling_requests(
     remote_public_key: RsaPublicKey,
 ) -> Result<()> {
     let (mut send, mut recv) = socket.split();
-    let connection_and_stop_future: AtomicRefCell<Option<(PeerConnection, Arc<AtomicBool>)>> = AtomicRefCell::new(None);
+    let remote_ref: AtomicRefCell<Option<RemoteConnection>> = AtomicRefCell::new(None);
 
     println!("Handling signalling requests!");
     // purely functional version of this loop blocked on https://github.com/rust-lang/rust/issues/90656
     while let Some(packet) = recv.next().await {
         let res: Result<BoxFuture<Result<Message>>> = try {
             match deserialize_packet::<HandshakePacket>(&packet.context("Signalling failed: could not read packet")?)? {
-                HandshakePacket::RemoteOffer { peer, key, iv, payload } => {
-                    // If we already have a connection then stop the first connection
-                    // before starting a new one.
-                    if let Some((connection, stop_notifier)) = connection_and_stop_future.borrow().deref() {
-                        // Make sure we haven't already stopped yet (ie in the panic handler)
-                        if !connection.is_null() && !stop_notifier.load(Ordering::SeqCst) {
-                            unsafe {
-                                pion::hammer_rtp2rtc_stop(*connection);
-                            }
-                        }
-                    };
-                    handle_remote_offer(
-                        connection_and_stop_future.borrow_mut(),
-                        peer,
-                        key,
-                        iv,
-                        payload,
-                        &home_private_key,
-                        &remote_public_key,
-                    )
-                    .boxed()
-                }
+                HandshakePacket::RemoteOffer { peer, key, iv, payload } => handle_remote_offer(
+                    remote_ref.borrow_mut(),
+                    peer,
+                    key,
+                    iv,
+                    payload,
+                    &home_private_key,
+                    &remote_public_key,
+                )
+                .boxed(),
                 _ => Err(anyhow!("Signalling failed: did not get a RemoteOffer packet"))?,
             }
         };
@@ -171,7 +180,7 @@ pub async fn handle_signalling_requests(
 }
 
 async fn handle_remote_offer<'a>(
-    mut connection_and_stop_future: AtomicRefMut<'a, Option<(PeerConnection, Arc<AtomicBool>)>>,
+    mut remote_ref: AtomicRefMut<'a, Option<RemoteConnection>>,
     peer: u32,
     key: Vec<u8>,
     iv: Vec<u8>,
@@ -208,7 +217,7 @@ async fn handle_remote_offer<'a>(
             .map_err(|_| anyhow!("Signalling failed: couldn't decrypt remote payload"))?;
 
         // Start the server
-        let (connection, answer, stop_notifier) = start_pion_server(
+        let (new_remote, answer) = start_pion_server(
             String::from_utf8(decrypted_payload).context("Signalling failed: offer was not a valid string")?,
         )
         .await?;
@@ -244,7 +253,7 @@ async fn handle_remote_offer<'a>(
             payload: encrypted_answer,
         })?;
 
-        *connection_and_stop_future = Some((connection, stop_notifier));
+        remote_ref.replace(new_remote);
         message
     };
     if let Err(err) = result {
@@ -264,7 +273,7 @@ async fn handle_remote_offer<'a>(
 /// Returns a pointer to the server's PeerConnection, the server's
 /// answer, and an atomic boolean that will be set to true when
 /// the server stops.
-async fn start_pion_server(offer: String) -> Result<(PeerConnection, String, Arc<AtomicBool>)> {
+async fn start_pion_server(offer: String) -> Result<(RemoteConnection, String)> {
     let (connection_tx, connection_rx) = oneshot::channel();
     let (answer_tx, answer_rx) = oneshot::channel();
     let (ports_tx, mut ports_rx) = mpsc::unbounded();
@@ -362,9 +371,14 @@ async fn start_pion_server(offer: String) -> Result<(PeerConnection, String, Arc
     });
     let connection = connection_rx.await??;
     let answer = answer_rx.await??;
-    let ports = ports_rx.next().await;
-    println!("{:?}", ports);
-    Ok((connection, answer, stop_notifier_out))
+    let ports = ports_rx.next().await.ok_or_else(|| anyhow!("Couldn't bind ports"))?;
+    let video_process = stream::stream_video(ports.0)?;
+    let remote = RemoteConnection {
+        connection,
+        stop_notifier: stop_notifier_out,
+        video_process,
+    };
+    Ok((remote, answer))
 }
 
 fn start_pion_server_inner(connection: PeerConnection, ports_tx: mpsc::UnboundedSender<(u16, u16)>) {

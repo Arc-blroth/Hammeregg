@@ -8,6 +8,7 @@
 pub mod key;
 pub mod net;
 pub mod pion;
+pub mod stream;
 pub mod ui;
 pub mod work;
 
