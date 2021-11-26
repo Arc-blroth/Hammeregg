@@ -5,16 +5,16 @@ package main
 // #include <bridge.h>
 import "C"
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net"
-	"os"
-	"runtime/cgo"
-	"unsafe"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "io"
+    "net"
+    "os"
+    "runtime/cgo"
+    "unsafe"
 
-	"github.com/pion/webrtc/v3"
+    "github.com/pion/webrtc/v3"
 )
 
 // Since rtp2rtc is always built as a
@@ -163,61 +163,61 @@ func hammer_rtp2rtc_start(
 
     defer func() {
         // Make sure to close the peer connection before returning
-		if err := peerConnection.Connection.Close(); err != nil {
+        if err := peerConnection.Connection.Close(); err != nil {
             LogError("Couldn't close peer connection: %s", err)
-			panic(err)
-		}
-	}()
+            panic(err)
+        }
+    }()
 
     // Read video and audio packets from remote for ACKs
     go func() {
-		buffer := make([]byte, NetBufferSize)
-		for {
-			if _, _, err := peerConnection.AudioSender.Read(buffer); err != nil {
+        buffer := make([]byte, NetBufferSize)
+        for {
+            if _, _, err := peerConnection.AudioSender.Read(buffer); err != nil {
                 if(!errors.Is(err, io.ErrClosedPipe)) {
                     LogError("Couldn't read from audio sender: %s", err)
                 }
                 return
-			}
-		}
-	}()
+            }
+        }
+    }()
     go func() {
-		buffer := make([]byte, NetBufferSize)
-		for {
-			if _, _, err := peerConnection.VideoSender.Read(buffer); err != nil {
+        buffer := make([]byte, NetBufferSize)
+        for {
+            if _, _, err := peerConnection.VideoSender.Read(buffer); err != nil {
                 if(!errors.Is(err, io.ErrClosedPipe)) {
                     LogError("Couldn't read from video sender: %s", err)
                 }
                 return
-			}
-		}
-	}()
+            }
+        }
+    }()
 
     // Open UDP listeners on the given ports
     videoListener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
     videoPort := videoListener.LocalAddr().(*net.UDPAddr).Port
-	if err != nil {
+    if err != nil {
         LogError("Binding to video port %d failed!: %s", videoPort, err)
-		panic(err)
-	}
+        panic(err)
+    }
     audioListener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
     audioPort := audioListener.LocalAddr().(*net.UDPAddr).Port
-	if err != nil {
+    if err != nil {
         LogError("Binding to audio port %d failed!: %s", audioPort, err)
-		panic(err)
-	}
+        panic(err)
+    }
     
-	defer func() {
+    defer func() {
         // Make sure to close the UDP listeners before returning
-		if err = videoListener.Close(); err != nil {
+        if err = videoListener.Close(); err != nil {
             LogError("Couldn't close video listener: %s", err)
-			panic(err)
-		}
-		if err = audioListener.Close(); err != nil {
+            panic(err)
+        }
+        if err = audioListener.Close(); err != nil {
             LogError("Couldn't close audio listener: %s", err)
-			panic(err)
-		}
-	}()
+            panic(err)
+        }
+    }()
 
     // give the bound ports back to caller
     C.HammerRTP2RTCPortsCallbackBridge(
@@ -229,9 +229,9 @@ func hammer_rtp2rtc_start(
     
     // Read packets from local ports and forward them to the remote
     go func() {
-		buffer := make([]byte, NetBufferSize * 2)
-		for {
-			n, _, err := videoListener.ReadFrom(buffer)
+        buffer := make([]byte, NetBufferSize * 2)
+        for {
+            n, _, err := videoListener.ReadFrom(buffer)
             if err != nil {
                 if(errors.Is(err, net.ErrClosed)) {
                     // graceful shutdown
@@ -246,12 +246,12 @@ func hammer_rtp2rtc_start(
                 LogError("Couldn't write to video track: %s", err)
                 panic(err)
             }
-		}
-	}()
+        }
+    }()
     go func() {
-		buffer := make([]byte, NetBufferSize * 2)
-		for {
-			n, _, err := audioListener.ReadFrom(buffer)
+        buffer := make([]byte, NetBufferSize * 2)
+        for {
+            n, _, err := audioListener.ReadFrom(buffer)
             if err != nil {
                 if(errors.Is(err, net.ErrClosed)) {
                     // graceful shutdown
@@ -266,8 +266,8 @@ func hammer_rtp2rtc_start(
                 LogError("Couldn't write to audio track: %s", err)
                 panic(err)
             }
-		}
-	}()
+        }
+    }()
 
     // Wait for the stop notifier to be called
     <-*peerConnection.StopNotifier
