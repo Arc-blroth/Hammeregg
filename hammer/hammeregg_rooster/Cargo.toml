@@ -15,4 +15,4 @@ pretty_env_logger = "0.4.0"
 rustls-pemfile = "0.2.1"
 tokio = { version = "1.11.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 tokio-rustls = "0.23.0"
-tokio-tungstenite = { version = "0.15.0", features = ["rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.16.0", features = ["rustls-tls-webpki-roots"] }

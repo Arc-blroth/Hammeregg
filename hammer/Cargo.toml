@@ -7,11 +7,6 @@ members = [
     "hammeregg_rooster"
 ]
 
-[patch.crates-io]
-# TODO blocked on https://github.com/snapview/tokio-tungstenite/pull/198
-tokio-tungstenite = { git = "https://github.com/dnaka91/tokio-tungstenite.git", rev = "49d4e0b" }
-tungstenite = { git = "https://github.com/dnaka91/tungstenite-rs.git", rev = "f4bb653aa03665a83bd98068432602f07cd5634b" }
-
 # Prevents the hour long RSA key generation in debug mode
 [profile.dev.package]
 num-bigint-dig = { opt-level = 3 }
