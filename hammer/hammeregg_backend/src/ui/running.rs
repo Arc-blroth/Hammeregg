@@ -5,10 +5,12 @@ use eframe::egui::Ui;
 use rfd::FileDialog;
 use rsa::pkcs8::{ToPrivateKey, ToPublicKey};
 use rsa::RsaPrivateKey;
+use winit::event_loop::EventLoop;
 
 use crate::key::RemotePassword;
 use crate::net;
 use crate::net::WSS;
+use crate::stream::MonitorBounds;
 use crate::ui::screen::Screen;
 use crate::work::WorkThread;
 
@@ -28,6 +30,21 @@ impl RunningScreen {
     ) -> Self {
         let (home_private_key, remote_private_key) = password;
 
+        // get current screen offset + resolution
+        // we create a temp event loop to do this because eframe
+        // doesn't give us any way to access the existing window
+        let bounds = {
+            let event_loop = EventLoop::new();
+            let primary_monitor = event_loop
+                .primary_monitor()
+                .or_else(|| event_loop.available_monitors().next())
+                .expect("How are there no monitors if this window is showing?");
+            let scale = primary_monitor.scale_factor();
+            let pos = primary_monitor.position().to_logical(scale);
+            let size = primary_monitor.size().to_logical(scale);
+            MonitorBounds::new(pos.x, pos.y, size.width, size.height)
+        };
+
         // start handling signalling requests
         let home_public_key = home_private_key.to_public_key();
         let remote_public_key = remote_private_key.to_public_key();
@@ -35,6 +52,7 @@ impl RunningScreen {
             wss,
             home_private_key,
             remote_public_key,
+            bounds,
         ));
         work_thread.handle().spawn(async move {
             if let Err(err) = join_handle.await {

@@ -73,7 +73,8 @@ extern "C" {
         connection: PeerConnection,
         ports_callback: extern "C" fn(video: u16, audio: u16, user_data: *mut c_void),
         ports_callback_user_data: *mut c_void,
-        input_callback: extern "C" fn(),
+        input_callback: extern "C" fn(input_packet: *mut c_void, input_packet_len: usize, user_data: *mut c_void),
+        input_callback_user_data: *mut c_void,
     );
 
     /// Asynchronously requests the RTP -> WebRTC connection to stop.

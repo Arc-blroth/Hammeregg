@@ -144,6 +144,76 @@ impl HandshakeInitPacket {
     }
 }
 
+/// Keyboard and mouse input packets, sent by the
+/// remote computer over a WebRTC data channel.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InputPacket {
+    KeyDown(KeyInput),
+    KeyUp(KeyInput),
+    MouseDown(MouseButton),
+    MouseUp(MouseButton),
+    MouseMove { x: f32, y: f32 },
+    MouseScroll { x: i32, y: i32 },
+}
+
+/// Keyboard input.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeyInput {
+    SpecialKey(SpecialKeyInput),
+    AlphaKey(char),
+    RawKey(u16),
+}
+
+/// "Special" input keys, based on the keys that
+/// Enigo supports.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpecialKeyInput {
+    Alt,
+    Backspace,
+    CapsLock,
+    Control,
+    Delete,
+    DownArrow,
+    End,
+    Escape,
+    F1,
+    F10,
+    F11,
+    F12,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    Home,
+    LeftArrow,
+    Meta,
+    Option,
+    PageDown,
+    PageUp,
+    Return,
+    RightArrow,
+    Shift,
+    Space,
+    Tab,
+    UpArrow,
+}
+
+/// Mouse buttons.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MouseButton {
+    Left,
+    Middle,
+    Right,
+}
+
 /// Serializes a packet to a binary message
 /// containing BSON.
 pub fn serialize_packet<P>(packet: &P) -> Result<Message>

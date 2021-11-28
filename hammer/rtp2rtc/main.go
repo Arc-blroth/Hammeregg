@@ -157,6 +157,7 @@ func hammer_rtp2rtc_start(
     ports_callback C.hammer_rtp2rtc_ports_callback,
     ports_callback_user_data unsafe.Pointer,
     input_callback C.hammer_rtp2rtc_input_callback,
+    input_callback_user_data unsafe.Pointer,
 ) {
     LogInfo("start()")
     peerConnection := cgo.Handle(connection).Value().(PeerConnection)
@@ -266,6 +267,25 @@ func hammer_rtp2rtc_start(
                 LogError("Couldn't write to audio track: %s", err)
                 panic(err)
             }
+        }
+    }()
+
+    // Read packets from the input channel and forward
+    // them to the callback
+    peerConnection.InputChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
+        C.HammerRTP2RTCInputCallbackBridge(
+            input_callback,
+            unsafe.Pointer(&msg.Data[0]),
+            C.size_t(len(msg.Data)),
+            input_callback_user_data,
+        )
+    })
+    
+    defer func() {
+        // Make sure to close the input channel before returning
+        if err = peerConnection.InputChannel.Close(); err != nil {
+            LogError("Couldn't close input channel: %s", err)
+            panic(err)
         }
     }()
 

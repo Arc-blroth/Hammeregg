@@ -1,8 +1,7 @@
-use std::ffi::{CStr, CString};
+use std::ffi::{c_void, CStr, CString};
 use std::fs::File;
 use std::io::BufReader;
 use std::net::SocketAddr;
-use std::ops::Deref;
 use std::os::raw::c_char;
 use std::process::Child;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -12,10 +11,13 @@ use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, Key as AesGcmKey, NewAead, Nonce};
 use anyhow::{anyhow, Context, Result};
 use atomic_refcell::{AtomicRefCell, AtomicRefMut};
+use enigo::Enigo;
 use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 use futures::{future, FutureExt, SinkExt, StreamExt};
-use hammeregg_core::{deserialize_packet, serialize_packet, HandshakeInitPacket, HandshakePacket, VERSION_1_0};
+use hammeregg_core::{
+    deserialize_packet, serialize_packet, HandshakeInitPacket, HandshakePacket, InputPacket, VERSION_1_0,
+};
 use rand_chacha::rand_core::{RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use rsa::{PublicKey, RsaPrivateKey, RsaPublicKey};
@@ -27,7 +29,8 @@ use url::Url;
 use zeroize::Zeroizing;
 
 use crate::pion::{make_c_closure, PeerConnection};
-use crate::{key, pion, stream};
+use crate::stream::MonitorBounds;
+use crate::{input, key, pion, stream};
 
 pub type WSS = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -134,6 +137,7 @@ pub async fn handle_signalling_requests(
     socket: WSS,
     home_private_key: RsaPrivateKey,
     remote_public_key: RsaPublicKey,
+    monitor_bounds: MonitorBounds,
 ) -> Result<()> {
     let (mut send, mut recv) = socket.split();
     let remote_ref: AtomicRefCell<Option<RemoteConnection>> = AtomicRefCell::new(None);
@@ -151,6 +155,7 @@ pub async fn handle_signalling_requests(
                     payload,
                     &home_private_key,
                     &remote_public_key,
+                    monitor_bounds,
                 )
                 .boxed(),
                 _ => Err(anyhow!("Signalling failed: did not get a RemoteOffer packet"))?,
@@ -187,6 +192,7 @@ async fn handle_remote_offer<'a>(
     payload: Vec<u8>,
     home_private_key: &RsaPrivateKey,
     remote_public_key: &RsaPublicKey,
+    monitor_bounds: MonitorBounds,
 ) -> Result<Message> {
     println!(
         "Handling remote offer from peer {} with payload length {}",
@@ -219,6 +225,7 @@ async fn handle_remote_offer<'a>(
         // Start the server
         let (new_remote, answer) = start_pion_server(
             String::from_utf8(decrypted_payload).context("Signalling failed: offer was not a valid string")?,
+            monitor_bounds,
         )
         .await?;
 
@@ -273,7 +280,7 @@ async fn handle_remote_offer<'a>(
 /// Returns a pointer to the server's PeerConnection, the server's
 /// answer, and an atomic boolean that will be set to true when
 /// the server stops.
-async fn start_pion_server(offer: String) -> Result<(RemoteConnection, String)> {
+async fn start_pion_server(offer: String, monitor_bounds: MonitorBounds) -> Result<(RemoteConnection, String)> {
     let (connection_tx, connection_rx) = oneshot::channel();
     let (answer_tx, answer_rx) = oneshot::channel();
     let (ports_tx, mut ports_rx) = mpsc::unbounded();
@@ -367,12 +374,12 @@ async fn start_pion_server(offer: String) -> Result<(RemoteConnection, String)> 
         answer_tx.send(Ok(answer.to_string())).unwrap();
 
         // Start streaming!
-        start_pion_server_inner(connection, ports_tx);
+        start_pion_server_inner(connection, ports_tx, monitor_bounds);
     });
     let connection = connection_rx.await??;
     let answer = answer_rx.await??;
     let ports = ports_rx.next().await.ok_or_else(|| anyhow!("Couldn't bind ports"))?;
-    let video_process = stream::stream_video(ports.0)?;
+    let video_process = stream::stream_video(monitor_bounds, ports.0)?;
     let remote = RemoteConnection {
         connection,
         stop_notifier: stop_notifier_out,
@@ -381,14 +388,31 @@ async fn start_pion_server(offer: String) -> Result<(RemoteConnection, String)> 
     Ok((remote, answer))
 }
 
-fn start_pion_server_inner(connection: PeerConnection, ports_tx: mpsc::UnboundedSender<(u16, u16)>) {
-    let (_ports_closure, ports_callback, ports_callback_data) = make_c_closure!(move |video: u16, audio: u16| {
+fn start_pion_server_inner(
+    connection: PeerConnection,
+    ports_tx: mpsc::UnboundedSender<(u16, u16)>,
+    monitor_bounds: MonitorBounds,
+) {
+    let (_ports_closure, ports_callback, ports_callback_user_data) = make_c_closure!(move |video: u16, audio: u16| {
         ports_tx.unbounded_send((video, audio)).unwrap();
     });
 
-    extern "C" fn temp_callback() {}
-
+    let mut enigo = Enigo::new();
+    let (_input_closure, input_callback, input_callback_user_data) =
+        make_c_closure!(move |input_packet: *mut c_void, input_packet_len: usize| {
+            let input_packet_raw = unsafe { std::slice::from_raw_parts(input_packet as *const u8, input_packet_len) };
+            match bson::from_slice::<InputPacket>(input_packet_raw).context("Failed to deserialize packet") {
+                Ok(packet) => input::handle_input(&mut enigo, monitor_bounds, packet),
+                Err(err) => eprintln!("{:?}", err),
+            }
+        });
     unsafe {
-        pion::hammer_rtp2rtc_start(connection, ports_callback, ports_callback_data, temp_callback);
+        pion::hammer_rtp2rtc_start(
+            connection,
+            ports_callback,
+            ports_callback_user_data,
+            input_callback,
+            input_callback_user_data,
+        );
     }
 }
