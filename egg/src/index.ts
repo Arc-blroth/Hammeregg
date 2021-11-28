@@ -3,6 +3,7 @@ import { isIP } from "range_check"
 import { StateMachine, StateMachineInstance } from "ts-state-machines"
 import * as core from "./hammeregg_core"
 import * as key from "./hammeregg_key"
+import * as input from "./input"
 
 /** jquery is dead, long live jquery! */
 let $ = (id: string) => document.getElementById(id)
@@ -152,7 +153,7 @@ function initSignallingConnection(
 
     peerConnection.addTransceiver("audio", {"direction": "recvonly"})
     peerConnection.addTransceiver("video", {"direction": "recvonly"})
-    peerConnection.createDataChannel("hammeregg-input", {"negotiated": false})
+    let inputChannel = peerConnection.createDataChannel("hammeregg-input", {"negotiated": false})
     let allCandidatesGathered = new Promise<RTCSessionDescription>((resolve, _) => {
         peerConnection.onicecandidate = e => {
             if(e.candidate === null) {
@@ -246,7 +247,7 @@ function initSignallingConnection(
                     signallingConnection.close()
 
                     // show the actual desktop
-                    showStream()
+                    showStream(inputChannel)
                     break
                 }
                 case core.HandshakePacketType.HOME_ANSWER_FAILURE: {
@@ -264,11 +265,12 @@ function initSignallingConnection(
     }
 }
 
-function showStream() {
+function showStream(inputChannel: RTCDataChannel) {
     $("setup-wrapper").classList.add("hidden")
     $("stream-wrapper").classList.remove("hidden")
     
     let streamVideo = $("stream-video") as HTMLVideoElement
     streamVideo.autoplay = true
     streamVideo.controls = false
+    input.setup(inputChannel, streamVideo)
 }

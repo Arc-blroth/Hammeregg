@@ -166,10 +166,18 @@ pub enum KeyInput {
     RawKey(u16),
 }
 
+/// Mouse buttons.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MouseButton {
+    Left,
+    Middle,
+    Right,
+}
+
 /// "Special" input keys, based on the keys that
 /// Enigo supports.
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum SpecialKeyInput {
     Alt,
     Backspace,
@@ -203,15 +211,6 @@ pub enum SpecialKeyInput {
     Space,
     Tab,
     UpArrow,
-}
-
-/// Mouse buttons.
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum MouseButton {
-    Left,
-    Middle,
-    Right,
 }
 
 /// Serializes a packet to a binary message

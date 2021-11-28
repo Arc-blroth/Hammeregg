@@ -82,7 +82,7 @@ export interface HomeAnswerFailureHandshakePacket {
     error: string;
 }
 
-/*
+/**
  * The body of the various packet types sent over
  * the signalling server channel. Both the
  * `HomeInit` and `RemoteInit` packets must
@@ -99,7 +99,7 @@ export type HandshakePacket =
     | HomeAnswerSuccessHandshakePacket
     | HomeAnswerFailureHandshakePacket
 
-/*
+/**
  * Initial handshake packet, sent by both the home
  * and remote computers to the signalling server as
  * the first packet sent. Home computers should send
@@ -111,4 +111,72 @@ export interface HandshakeInitPacket {
     magic: BSON.Long;
     version: number;
     packet: HandshakePacket;
+}
+
+/**
+ * Keyboard and mouse input packets, sent by the
+ * remote computer over a WebRTC data channel.
+ */
+export type Input =
+    { key_down: KeyInput }
+    | { key_up: KeyInput }
+    | { mouse_down: MouseButton }
+    | { mouse_up: MouseButton }
+    | { mouse_move: { x: number, y: number } }
+    | { mouse_scroll: { x: number, y: number } }
+
+/**
+ * Keyboard input.
+ */
+export type KeyInput =
+    { special_key: SpecialKeyInput }
+    | { alpha_key: string }
+    | { raw_key: number }
+
+/**
+ * Mouse buttons.
+ */
+export enum MouseButton {
+    Left = "Left",
+    Middle = "Middle",
+    Right = "Right",
+}
+
+/**
+ * "Special" input keys, based on the keys that
+ * Enigo supports.
+ */
+ export enum SpecialKeyInput {
+    Alt = "Alt",
+    Backspace = "Backspace",
+    CapsLock = "CapsLock",
+    Control = "Control",
+    Delete = "Delete",
+    DownArrow = "DownArrow",
+    End = "End",
+    Escape = "Escape",
+    F1 = "F1",
+    F10 = "F10",
+    F11 = "F11",
+    F12 = "F12",
+    F2 = "F2",
+    F3 = "F3",
+    F4 = "F4",
+    F5 = "F5",
+    F6 = "F6",
+    F7 = "F7",
+    F8 = "F8",
+    F9 = "F9",
+    Home = "Home",
+    LeftArrow = "LeftArrow",
+    Meta = "Meta",
+    Option = "Option",
+    PageDown = "PageDown",
+    PageUp = "PageUp",
+    Return = "Return",
+    RightArrow = "RightArrow",
+    Shift = "Shift",
+    Space = "Space",
+    Tab = "Tab",
+    UpArrow = "UpArrow",
 }
