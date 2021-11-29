@@ -82,8 +82,9 @@ func hammer_rtp2rtc_init() C.uintptr_t {
     }
 
     // inputs channel
-    noNegotiation := false
-    inputChannel, err := connection.CreateDataChannel("hammeregg-input", &webrtc.DataChannelInit{Negotiated: &noNegotiation})
+    var negotiationId uint16 = 0
+    yesNegotiation := true
+    inputChannel, err := connection.CreateDataChannel("hammeregg-input", &webrtc.DataChannelInit{ID: &negotiationId, Negotiated: &yesNegotiation})
     if err != nil {
         return Nullptr
     }

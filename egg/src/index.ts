@@ -153,7 +153,7 @@ function initSignallingConnection(
 
     peerConnection.addTransceiver("audio", {"direction": "recvonly"})
     peerConnection.addTransceiver("video", {"direction": "recvonly"})
-    let inputChannel = peerConnection.createDataChannel("hammeregg-input", {"negotiated": false})
+    let inputChannel = peerConnection.createDataChannel("hammeregg-input", { id: 0, negotiated: true })
     let allCandidatesGathered = new Promise<RTCSessionDescription>((resolve, _) => {
         peerConnection.onicecandidate = e => {
             if(e.candidate === null) {
