@@ -21,11 +21,18 @@ Hammeregg's "frontend", a single-page app that lets you remotely connect to your
 
 ## Building
 
-Hammeregg requires [Rust](https://www.rust-lang.org/), [Go](https://golang.org/), and [Node](https://nodejs.org/) to build, as well as a copy of [FFmpeg](https://www.ffmpeg.org/) to run.
+Hammeregg requires [Rust](https://www.rust-lang.org/), [Go](https://golang.org/), [Node](https://nodejs.org/), and [Yarn](https://yarnpkg.com/) to build, as well as a copy of [FFmpeg](https://www.ffmpeg.org/) to run.
 
 To build both Desktop and Rooster, run
 ```sh
 cd hammer
-cargo build
+cargo build --release
 ```
 Note that on Windows, the `pc-windows-gnu` toolchain for Rust is required.
+
+To build Egg, run
+```sh
+cd egg
+yarn install
+yarn parcel build src/index.html
+```
