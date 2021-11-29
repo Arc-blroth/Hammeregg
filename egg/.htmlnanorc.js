@@ -1,4 +1,4 @@
 module.exports = {
-  // keep multiline comments
-  removeComments: /<!--[^\n].*?-->/m
+    // keep multiline comments
+    removeComments: /<!--[^\n].*?-->/m,
 }

@@ -15,7 +15,10 @@ export const DEFAULT_HAMMEREGG_PORT: number = 7269
  * an `InitPacket`, equal to the binary
  * representation of "🔨🥚" in UTF-8.
  */
-export const MAGIC: BSON.Long = BSON.Long.fromBytes([0xF0, 0x9F, 0x94, 0xA8, 0xF0, 0x9F, 0xA5, 0x9A], true)
+export const MAGIC: BSON.Long = BSON.Long.fromBytes(
+    [0xf0, 0x9f, 0x94, 0xa8, 0xf0, 0x9f, 0xa5, 0x9a],
+    true
+)
 
 /** Version 1.0 */
 export const VERSION_1_0: number = 0x00_01_00_00
@@ -41,45 +44,45 @@ export enum HandshakePacketType {
 }
 
 export interface HomeInitHandshakePacket {
-    type: HandshakePacketType.HOME_INIT;
-    home_name: string;
+    type: HandshakePacketType.HOME_INIT
+    home_name: string
 }
 
 export interface HomeInitResponseHandshakePacket {
-    type: HandshakePacketType.HOME_INIT_RESPONSE;
-    response: Result;
+    type: HandshakePacketType.HOME_INIT_RESPONSE
+    response: Result
 }
 
 export interface RemoteInitHandshakePacket {
-    type: HandshakePacketType.REMOTE_INIT;
-    home_name: string;
+    type: HandshakePacketType.REMOTE_INIT
+    home_name: string
 }
 
 export interface RemoteInitResponseHandshakePacket {
-    type: HandshakePacketType.REMOTE_INIT_RESPONSE;
-    response: Result;
+    type: HandshakePacketType.REMOTE_INIT_RESPONSE
+    response: Result
 }
 
 export interface RemoteOfferHandshakePacket {
-    type: HandshakePacketType.REMOTE_OFFER;
-    peer: number;
-    key: Array<number>;
-    iv: Array<number>;
-    payload: Array<number>;
+    type: HandshakePacketType.REMOTE_OFFER
+    peer: number
+    key: Array<number>
+    iv: Array<number>
+    payload: Array<number>
 }
 
 export interface HomeAnswerSuccessHandshakePacket {
-    type: HandshakePacketType.HOME_ANSWER_SUCCESS;
-    peer: number;
-    key: Array<number>;
-    iv: Array<number>;
-    payload: Array<number>;
+    type: HandshakePacketType.HOME_ANSWER_SUCCESS
+    peer: number
+    key: Array<number>
+    iv: Array<number>
+    payload: Array<number>
 }
 
 export interface HomeAnswerFailureHandshakePacket {
-    type: HandshakePacketType.HOME_ANSWER_FAILURE;
-    peer: number;
-    error: string;
+    type: HandshakePacketType.HOME_ANSWER_FAILURE
+    peer: number
+    error: string
 }
 
 /**
@@ -91,7 +94,7 @@ export interface HomeAnswerFailureHandshakePacket {
  * enum.
  */
 export type HandshakePacket =
-    HomeInitHandshakePacket
+    | HomeInitHandshakePacket
     | HomeInitResponseHandshakePacket
     | RemoteInitHandshakePacket
     | RemoteInitResponseHandshakePacket
@@ -108,9 +111,9 @@ export type HandshakePacket =
  * `RemoteInit`.
  */
 export interface HandshakeInitPacket {
-    magic: BSON.Long;
-    version: number;
-    packet: HandshakePacket;
+    magic: BSON.Long
+    version: number
+    packet: HandshakePacket
 }
 
 /**
@@ -118,18 +121,18 @@ export interface HandshakeInitPacket {
  * remote computer over a WebRTC data channel.
  */
 export type Input =
-    { key_down: KeyInput }
+    | { key_down: KeyInput }
     | { key_up: KeyInput }
     | { mouse_down: MouseButton }
     | { mouse_up: MouseButton }
-    | { mouse_move: { x: number, y: number } }
-    | { mouse_scroll: { x: number, y: number } }
+    | { mouse_move: { x: number; y: number } }
+    | { mouse_scroll: { x: number; y: number } }
 
 /**
  * Keyboard input.
  */
 export type KeyInput =
-    { special_key: SpecialKeyInput }
+    | { special_key: SpecialKeyInput }
     | { alpha_key: string }
     | { raw_key: number }
 
@@ -146,7 +149,7 @@ export enum MouseButton {
  * "Special" input keys, based on the keys that
  * Enigo supports.
  */
- export enum SpecialKeyInput {
+export enum SpecialKeyInput {
     Alt = "Alt",
     Backspace = "Backspace",
     CapsLock = "CapsLock",

@@ -1,27 +1,27 @@
 {
-  "name": "hammeregg_egg",
-  "version": "0.1.0",
-  "description": "Hammeregg's web-based frontend.",
-  "repository": "https://github.com/Arc-blroth/Hammeregg",
-  "author": "Arc-blroth",
-  "license": "MIT",
-  "devDependencies": {
-    "ansi-html": "patch:ansi-html@0.0.7#.yarn/patches/ansi-html-community.patch",
-    "autoprefixer": "^10.3.7",
-    "parcel": "^2.0.0",
-    "postcss": "^8.3.9",
-    "postcss-import": "^14.0.2",
-    "tailwindcss": "^2.2.16",
-    "typescript": "^4.4.4"
-  },
-  "resolutions": {
-    "ansi-regex": "5.0.1",
-    "set-value": "4.0.1"
-  },
-  "packageManager": "yarn@3.1.0",
-  "dependencies": {
-    "bson": "^4.5.3",
-    "range_check": "^2.0.4",
-    "ts-state-machines": "^1.0.3"
-  }
+    "name": "hammeregg_egg",
+    "version": "0.1.0",
+    "description": "Hammeregg's web-based frontend.",
+    "repository": "https://github.com/Arc-blroth/Hammeregg",
+    "author": "Arc-blroth",
+    "license": "MIT",
+    "devDependencies": {
+        "ansi-html": "patch:ansi-html@0.0.7#.yarn/patches/ansi-html-community.patch",
+        "autoprefixer": "^10.3.7",
+        "parcel": "^2.0.0",
+        "postcss": "^8.3.9",
+        "postcss-import": "^14.0.2",
+        "tailwindcss": "^2.2.16",
+        "typescript": "^4.4.4"
+    },
+    "resolutions": {
+        "ansi-regex": "5.0.1",
+        "set-value": "4.0.1"
+    },
+    "packageManager": "yarn@3.1.0",
+    "dependencies": {
+        "bson": "^4.5.3",
+        "range_check": "^2.0.4",
+        "ts-state-machines": "^1.0.3"
+    }
 }

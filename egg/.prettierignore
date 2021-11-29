@@ -1,0 +1,9 @@
+# Yarn
+.pnp.*
+.yarn/*
+
+# Output should be minified
+dist/
+
+# Parcel
+.parcel-cache/

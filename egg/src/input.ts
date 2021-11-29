@@ -6,9 +6,9 @@ import { Input, KeyInput, MouseButton, SpecialKeyInput } from "./hammeregg_core"
  */
 export function setup(channel: RTCDataChannel, video: HTMLVideoElement) {
     let keyHandler = (e: KeyboardEvent, ty: string) => {
-        if(!e.isComposing) {
+        if (!e.isComposing) {
             let keyInput = keyEventToKeyInput(e)
-            if(keyInput !== null) {
+            if (keyInput !== null) {
                 channel.send(BSON.serialize({ [ty]: keyInput }))
             }
         }
@@ -36,7 +36,10 @@ export function setup(channel: RTCDataChannel, video: HTMLVideoElement) {
     video.onmousedown = e => buttHandler(e, "mouse_down")
     video.onmouseup = e => buttHandler(e, "mouse_up")
 
-    video.onwheel = e => channel.send(BSON.serialize({ mouse_scroll: { x: e.clientX, y: e.clientY } }))
+    video.onwheel = e =>
+        channel.send(
+            BSON.serialize({ mouse_scroll: { x: e.clientX, y: e.clientY } })
+        )
 
     video.onmousemove = e => {
         // calculate actual video bounds
@@ -46,16 +49,16 @@ export function setup(channel: RTCDataChannel, video: HTMLVideoElement) {
         let minY: number
         let scaledW: number
         let scaledH: number
-        if(videoRatio >= windowRatio) {
+        if (videoRatio >= windowRatio) {
             minX = (window.innerWidth - window.innerHeight / videoRatio) / 2
             minY = 0
-            scaledW = window.innerWidth - (minX * 2)
+            scaledW = window.innerWidth - minX * 2
             scaledH = window.innerHeight
         } else {
             minX = 0
             minY = (window.innerHeight - window.innerWidth * videoRatio) / 2
             scaledW = window.innerWidth
-            scaledH = window.innerHeight - (minY * 2)
+            scaledH = window.innerHeight - minY * 2
         }
 
         let x = (e.clientX - minX) / scaledW
@@ -72,12 +75,13 @@ const BROWSER2ENIGO_SPECIAL_KEY_MAP = new Map(
         .map(enigoKey => {
             let browserKey: string
 
-            if(enigoKey.endsWith("Arrow")) {
+            if (enigoKey.endsWith("Arrow")) {
                 // Reverse the position of "Arrow" in arrow key strings
-                browserKey = "Arrow" + enigoKey.substring(0, enigoKey.length - 5)
-            } else if(enigoKey === "Return") {
+                browserKey =
+                    "Arrow" + enigoKey.substring(0, enigoKey.length - 5)
+            } else if (enigoKey === "Return") {
                 browserKey = "Enter"
-            } else if(enigoKey === "Space") {
+            } else if (enigoKey === "Space") {
                 browserKey = " "
             } else {
                 browserKey = enigoKey
@@ -85,14 +89,14 @@ const BROWSER2ENIGO_SPECIAL_KEY_MAP = new Map(
 
             return [browserKey, enigoKey as SpecialKeyInput]
         })
-    )
+)
 
 function keyEventToKeyInput(e: KeyboardEvent): KeyInput | null {
-    if(e.key >= '!' && e.key <= '~') {
+    if (e.key >= "!" && e.key <= "~") {
         return { alpha_key: e.key }
-    } else if(BROWSER2ENIGO_SPECIAL_KEY_MAP.has(e.key)) {
+    } else if (BROWSER2ENIGO_SPECIAL_KEY_MAP.has(e.key)) {
         return { special_key: BROWSER2ENIGO_SPECIAL_KEY_MAP.get(e.key) }
-    } else if(e.hasOwnProperty("keyCode")) {
+    } else if (e.hasOwnProperty("keyCode")) {
         // @ts-ignore
         return { raw_key: e.keyCode }
     } else {
