@@ -168,7 +168,6 @@ pub enum KeyInput {
 
 /// Mouse buttons.
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum MouseButton {
     Left,
     Middle,
